@@ -81,14 +81,7 @@ impl<H: Hash + Clone> MerkleTree<H> {
     }
 
     pub fn verify(&mut self, transaction: H, proof: Vec<u64>) -> bool {
-        if proof.is_empty() {
-            let mut hasher = DefaultHasher::new();
-            transaction.hash(&mut hasher);
-            return hasher.finish() == self.merkle_root.hash_value;
-        }
-
         let mut hasher = DefaultHasher::new();
-
         transaction.hash(&mut hasher);
         let mut transaction = hasher.finish();
         for p in proof {
@@ -139,9 +132,9 @@ impl<H: Hash + Clone> MerkleTree<H> {
 
         proof
     }
+
     pub fn add(&mut self, transaction: H) {
         self.leafs.push(transaction);
-
         self.merkle_root = Self::create_tree(self.leafs.clone()).merkle_root;
     }
 }
