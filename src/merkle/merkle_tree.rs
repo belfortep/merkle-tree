@@ -6,7 +6,7 @@ struct MerkleNode {
     left: Option<Box<MerkleNode>>,
     right: Option<Box<MerkleNode>>,
 }
-struct MerkleTree {
+pub struct MerkleTree {
     merkle_root: MerkleNode,
 }
 
@@ -52,8 +52,8 @@ impl MerkleTree {
                 if let Some(right) = &right {
                     right.hash_value.hash(&mut hasher);
                 }
-
-                let mut parent = MerkleNode::new(hasher.finish());
+                let hash = hasher.finish();
+                let mut parent = MerkleNode::new(hash);
                 parent.left = left;
                 parent.right = right;
                 parents.push(Box::new(parent));
@@ -79,33 +79,63 @@ impl MerkleTree {
     }
 
     pub fn verify<H: Hash>(&mut self, transaction: H, proof: Vec<u64>) -> bool {
+        if proof.is_empty() {
+            let mut hasher = DefaultHasher::new();
+            transaction.hash(&mut hasher);
+            return hasher.finish() == self.merkle_root.hash_value;
+        }
+
         let mut hasher = DefaultHasher::new();
+        let mut hash = 0;
 
         transaction.hash(&mut hasher);
 
-        if self.merkle_root.hash_value == hasher.finish() {
-            return true;
+        let transaction = hasher.finish();
+        for p in proof {
+            hasher = DefaultHasher::new();
+            p.hash(&mut hasher);
+            transaction.hash(&mut hasher);
+            hash = hasher.finish();
         }
-        let mut hasher = DefaultHasher::new();
 
-        for hash in proof {
-            hash.hash(&mut hasher);
+        hash == self.merkle_root.hash_value
+    }
+
+    fn recursive_get_proof(
+        actual_node: &MerkleNode,
+        mut hashes: &mut Vec<u64>,
+        transaction_hash: u64,
+    ) -> bool {
+        if let Some(left) = &actual_node.left {
+            if left.hash_value == transaction_hash {
+                hashes.push(actual_node.right.as_ref().unwrap().hash_value);
+                return true;
+            }
+            if Self::recursive_get_proof(&left, &mut hashes, transaction_hash) {
+                hashes.push(actual_node.right.as_ref().unwrap().hash_value);
+                return true;
+            }
         }
-        let hash = hasher.finish();
 
-        self.merkle_root.hash_value == hash
+        if let Some(right) = &actual_node.right {
+            if right.hash_value == transaction_hash {
+                hashes.push(actual_node.left.as_ref().unwrap().hash_value);
+                return true;
+            }
+
+            if Self::recursive_get_proof(&right, &mut hashes, transaction_hash) {
+                hashes.push(actual_node.left.as_ref().unwrap().hash_value);
+                return true;
+            }
+        }
+        false
     }
 
     pub fn get_proof<H: Hash>(&mut self, transaction: H) -> Option<Vec<u64>> {
         let mut proof = Vec::new();
-
-        if let Some(left) = &self.merkle_root.left {
-            proof.push(left.hash_value);
-        }
-
-        if let Some(right) = &self.merkle_root.right {
-            proof.push(right.hash_value)
-        }
+        let mut hasher = DefaultHasher::new();
+        transaction.hash(&mut hasher);
+        Self::recursive_get_proof(&self.merkle_root, &mut proof, hasher.finish());
 
         Some(proof)
     }
@@ -126,7 +156,7 @@ pub mod test {
 
     #[test]
     fn test_002_a_merkle_tree_can_contains_one_transaction() {
-        let transactions = vec![String::from("hi")];
+        let transactions = vec![String::from("A")];
         let mut merkle_tree = MerkleTree::new(transactions.clone()).unwrap();
         let transaction = transactions[0].clone();
         let proof = merkle_tree.get_proof(transaction.clone()).unwrap();
@@ -138,10 +168,20 @@ pub mod test {
         let transactions = vec![String::from("A"), String::from("B")];
         let mut merkle_tree = MerkleTree::new(transactions.clone()).unwrap();
         let transaction = transactions[0].clone();
-        let another_transaction = transactions[1].clone();
         let proof = merkle_tree.get_proof(transaction.clone()).unwrap();
         assert!(merkle_tree.verify(transaction, proof));
-        let proof = merkle_tree.get_proof(another_transaction.clone()).unwrap();
-        assert!(merkle_tree.verify(another_transaction, proof));
+    }
+    #[test]
+    fn test_004_a_merkle_tree_can_contains_multiple_levels_of_transactions() {
+        let transactions = vec![
+            String::from("A"),
+            String::from("B"),
+            String::from("C"),
+            String::from("D"),
+        ];
+        let mut merkle_tree = MerkleTree::new(transactions.clone()).unwrap();
+        let transaction = transactions[3].clone();
+        let proof = merkle_tree.get_proof(transaction.clone()).unwrap();
+        assert!(merkle_tree.verify(transaction, proof));
     }
 }
