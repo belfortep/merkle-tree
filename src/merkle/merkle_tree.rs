@@ -49,10 +49,12 @@ pub mod test {
     }
 
     #[test]
-    fn test_003_a_merkle_tree_can_contains_one_transaction() {
-        let transactions = vec![String::from("hi")];
+    fn test_003_a_merkle_tree_can_contains_multiple_transactions() {
+        let transactions = vec![String::from("hi"), String::from("bye")];
         let mut merkle_tree = MerkleTree::new(transactions.clone());
         let transaction = transactions[0].clone();
+        let another_transaction = transactions[1].clone();
         assert!(merkle_tree.contains(transaction));
+        assert!(merkle_tree.contains(another_transaction));
     }
 }
