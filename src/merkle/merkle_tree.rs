@@ -78,13 +78,36 @@ impl MerkleTree {
         transactions_hash
     }
 
-    pub fn contains<H: Hash>(&mut self, transaction: H) -> bool {
+    pub fn verify<H: Hash>(&mut self, transaction: H, proof: Vec<u64>) -> bool {
         let mut hasher = DefaultHasher::new();
 
         transaction.hash(&mut hasher);
+
+        if self.merkle_root.hash_value == hasher.finish() {
+            return true;
+        }
+        let mut hasher = DefaultHasher::new();
+
+        for hash in proof {
+            hash.hash(&mut hasher);
+        }
         let hash = hasher.finish();
 
         self.merkle_root.hash_value == hash
+    }
+
+    pub fn get_proof<H: Hash>(&mut self, transaction: H) -> Option<Vec<u64>> {
+        let mut proof = Vec::new();
+
+        if let Some(left) = &self.merkle_root.left {
+            proof.push(left.hash_value);
+        }
+
+        if let Some(right) = &self.merkle_root.right {
+            proof.push(right.hash_value)
+        }
+
+        Some(proof)
     }
 }
 
@@ -96,7 +119,7 @@ pub mod test {
     #[test]
     fn test_001_a_new_merkle_tree_contains_nothing() {
         let transactions: Vec<String> = Vec::new();
-        let mut merkle_tree = MerkleTree::new(transactions);
+        let merkle_tree = MerkleTree::new(transactions);
 
         assert!(merkle_tree.is_err());
     }
@@ -106,16 +129,19 @@ pub mod test {
         let transactions = vec![String::from("hi")];
         let mut merkle_tree = MerkleTree::new(transactions.clone()).unwrap();
         let transaction = transactions[0].clone();
-        assert!(merkle_tree.contains(transaction));
+        let proof = merkle_tree.get_proof(transaction.clone()).unwrap();
+        assert!(merkle_tree.verify(transaction, proof))
     }
 
     #[test]
     fn test_003_a_merkle_tree_can_contains_multiple_transactions() {
-        let transactions = vec![String::from("hi"), String::from("bye")];
+        let transactions = vec![String::from("A"), String::from("B")];
         let mut merkle_tree = MerkleTree::new(transactions.clone()).unwrap();
         let transaction = transactions[0].clone();
         let another_transaction = transactions[1].clone();
-        assert!(merkle_tree.contains(transaction));
-        assert!(merkle_tree.contains(another_transaction));
+        let proof = merkle_tree.get_proof(transaction.clone()).unwrap();
+        assert!(merkle_tree.verify(transaction, proof));
+        let proof = merkle_tree.get_proof(another_transaction.clone()).unwrap();
+        assert!(merkle_tree.verify(another_transaction, proof));
     }
 }
