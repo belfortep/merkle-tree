@@ -6,8 +6,9 @@ struct MerkleNode {
     left: Option<Box<MerkleNode>>,
     right: Option<Box<MerkleNode>>,
 }
-pub struct MerkleTree {
+pub struct MerkleTree<H: Hash + Clone> {
     merkle_root: MerkleNode,
+    leafs: Vec<H>,
 }
 
 impl MerkleNode {
@@ -20,18 +21,18 @@ impl MerkleNode {
     }
 }
 
-impl MerkleTree {
-    pub fn new<H: Hash>(transactions: Vec<H>) -> Result<Self, String> {
+impl<H: Hash + Clone> MerkleTree<H> {
+    pub fn new(transactions: Vec<H>) -> Result<Self, String> {
         if transactions.is_empty() {
             return Err("Empty transactions vector".into());
         }
 
-        let transactions_hash = Self::get_hashes(transactions);
-
-        Ok(Self::create_tree_from_hashes(transactions_hash))
+        Ok(Self::create_tree(transactions))
     }
 
-    fn create_tree_from_hashes(transactions_hash: Vec<u64>) -> MerkleTree {
+    fn create_tree(transactions: Vec<H>) -> MerkleTree<H> {
+        let transactions_hash = Self::get_hashes(&transactions);
+
         let mut leafs: Vec<Box<MerkleNode>> = Vec::new();
         for hash in transactions_hash {
             leafs.push(Box::new(MerkleNode::new(hash)));
@@ -64,10 +65,11 @@ impl MerkleTree {
 
         Self {
             merkle_root: *leafs[0].clone(),
+            leafs: transactions,
         }
     }
 
-    fn get_hashes<H: Hash>(transactions: Vec<H>) -> Vec<u64> {
+    fn get_hashes(transactions: &Vec<H>) -> Vec<u64> {
         let mut transactions_hash = Vec::new();
         for transaction in transactions {
             let mut hasher = DefaultHasher::new();
@@ -78,7 +80,7 @@ impl MerkleTree {
         transactions_hash
     }
 
-    pub fn verify<H: Hash>(&mut self, transaction: H, proof: Vec<u64>) -> bool {
+    pub fn verify(&mut self, transaction: H, proof: Vec<u64>) -> bool {
         if proof.is_empty() {
             let mut hasher = DefaultHasher::new();
             transaction.hash(&mut hasher);
@@ -129,13 +131,18 @@ impl MerkleTree {
         false
     }
 
-    pub fn get_proof<H: Hash>(&mut self, transaction: H) -> Vec<u64> {
+    pub fn get_proof(&mut self, transaction: H) -> Vec<u64> {
         let mut proof = Vec::new();
         let mut hasher = DefaultHasher::new();
         transaction.hash(&mut hasher);
         Self::recursive_get_proof(&self.merkle_root, &mut proof, hasher.finish());
 
         proof
+    }
+    pub fn add(&mut self, transaction: H) {
+        self.leafs.push(transaction);
+
+        self.merkle_root = Self::create_tree(self.leafs.clone()).merkle_root;
     }
 }
 
@@ -204,6 +211,20 @@ pub mod test {
         let mut merkle_tree = MerkleTree::new(transactions.clone()).unwrap();
         let transaction = transactions[2].clone();
         let proof = merkle_tree.get_proof(transaction.clone());
+        assert!(merkle_tree.verify(transaction, proof));
+    }
+
+    #[test]
+    fn test_007_a_merkle_tree_can_add_new_elements() {
+        let transactions = vec![String::from("A")];
+        let mut merkle_tree = MerkleTree::new(transactions.clone()).unwrap();
+        let transaction = transactions[0].clone();
+        let proof = merkle_tree.get_proof(transaction.clone());
+        assert!(merkle_tree.verify(transaction, proof));
+        merkle_tree.add(String::from("B"));
+        let transaction = transactions[0].clone();
+        let proof = merkle_tree.get_proof(transaction.clone());
+        assert_eq!(proof.len(), 1);
         assert!(merkle_tree.verify(transaction, proof));
     }
 }
