@@ -1,3 +1,9 @@
+use std::hash::{DefaultHasher, Hash, Hasher};
+
 fn main() {
-    println!("Hello, world!");
+    let hola = 25;
+    let mut hasher = DefaultHasher::new();
+    hola.hash(&mut hasher);
+    let value = hasher.finish();
+    println!("Hello, world!, {:?}", value);
 }
