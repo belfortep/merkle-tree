@@ -1,5 +1,4 @@
 use std::hash::{DefaultHasher, Hash, Hasher};
-
 #[derive(Clone)]
 struct MerkleNode {
     hash_value: u64,
@@ -135,7 +134,11 @@ impl<H: Hash + Clone> MerkleTree<H> {
 
     pub fn add(&mut self, transaction: H) {
         self.leafs.push(transaction);
-        self.merkle_root = Self::create_tree(self.leafs.clone()).merkle_root;
+        let mut leafs = Vec::new();
+        for leaf in &self.leafs {
+            leafs.push(leaf.clone());
+        }
+        self.merkle_root = Self::create_tree(leafs.clone()).merkle_root;
     }
 }
 
@@ -145,7 +148,7 @@ pub mod test {
     use crate::merkle::merkle_tree::MerkleTree;
 
     #[test]
-    fn test_001_a_new_merkle_tree_contains_nothing() {
+    fn a_new_merkle_tree_contains_nothing() {
         let transactions: Vec<String> = Vec::new();
         let merkle_tree = MerkleTree::new(transactions);
 
@@ -153,7 +156,7 @@ pub mod test {
     }
 
     #[test]
-    fn test_002_a_merkle_tree_can_contains_one_transaction() {
+    fn a_merkle_tree_can_contains_one_transaction() {
         let transactions = vec![String::from("A")];
         let mut merkle_tree = MerkleTree::new(transactions.clone()).unwrap();
         let transaction = transactions[0].clone();
@@ -162,7 +165,7 @@ pub mod test {
     }
 
     #[test]
-    fn test_003_a_merkle_tree_can_contains_one_level_of_transactions() {
+    fn a_merkle_tree_can_contains_one_level_of_transactions() {
         let transactions = vec![String::from("A"), String::from("B")];
         let mut merkle_tree = MerkleTree::new(transactions.clone()).unwrap();
         let transaction = transactions[0].clone();
@@ -170,7 +173,7 @@ pub mod test {
         assert!(merkle_tree.verify(transaction, proof));
     }
     #[test]
-    fn test_004_a_merkle_tree_can_contains_two_level_of_transactions() {
+    fn a_merkle_tree_can_contains_two_level_of_transactions() {
         let transactions = vec![
             String::from("A"),
             String::from("B"),
@@ -184,7 +187,7 @@ pub mod test {
     }
 
     #[test]
-    fn test_005_a_merkle_tree_can_contains_an_odd_number_of_transactions() {
+    fn a_merkle_tree_can_contains_an_odd_number_of_transactions() {
         let transactions = vec![String::from("A"), String::from("B"), String::from("C")];
         let mut merkle_tree = MerkleTree::new(transactions.clone()).unwrap();
         let transaction = transactions[1].clone();
@@ -192,7 +195,7 @@ pub mod test {
         assert!(merkle_tree.verify(transaction, proof));
     }
     #[test]
-    fn test_006_a_merkle_tree_can_contains_multiple_levels_of_transactions() {
+    fn a_merkle_tree_can_contains_multiple_levels_of_transactions() {
         let transactions = vec![
             String::from("A"),
             String::from("B"),
@@ -208,7 +211,7 @@ pub mod test {
     }
 
     #[test]
-    fn test_007_a_merkle_tree_can_add_new_elements() {
+    fn a_merkle_tree_can_add_new_elements() {
         let transactions = vec![String::from("A")];
         let mut merkle_tree = MerkleTree::new(transactions.clone()).unwrap();
         let transaction = transactions[0].clone();
