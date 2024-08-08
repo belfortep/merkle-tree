@@ -95,7 +95,7 @@ impl<H: Hash + Clone> MerkleTree<H> {
 
     fn recursive_get_proof(
         actual_node: &MerkleNode,
-        mut proof: &mut Vec<u64>,
+        proof: &mut Vec<u64>,
         transaction_hash: u64,
     ) -> bool {
         if let Some(left) = &actual_node.left {
@@ -103,7 +103,7 @@ impl<H: Hash + Clone> MerkleTree<H> {
                 proof.push(actual_node.right.as_ref().unwrap().hash_value);
                 return true;
             }
-            if Self::recursive_get_proof(&left, &mut proof, transaction_hash) {
+            if Self::recursive_get_proof(left, proof, transaction_hash) {
                 proof.push(actual_node.right.as_ref().unwrap().hash_value);
                 return true;
             }
@@ -115,7 +115,7 @@ impl<H: Hash + Clone> MerkleTree<H> {
                 return true;
             }
 
-            if Self::recursive_get_proof(&right, &mut proof, transaction_hash) {
+            if Self::recursive_get_proof(right, proof, transaction_hash) {
                 proof.push(actual_node.left.as_ref().unwrap().hash_value);
                 return true;
             }
