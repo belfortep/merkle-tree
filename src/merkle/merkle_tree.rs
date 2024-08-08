@@ -30,20 +30,20 @@ impl<H: Hash + Clone> MerkleTree<H> {
     }
 
     fn create_tree(transactions: Vec<H>) -> MerkleTree<H> {
-        let transactions_hash = Self::get_hashes(&transactions);
+        let transactions_hash = Self::get_hashes_of_transactions(&transactions);
 
-        let mut leafs: Vec<Box<MerkleNode>> = Vec::new();
+        let mut nodes: Vec<Box<MerkleNode>> = Vec::new();
         for hash in transactions_hash {
-            leafs.push(Box::new(MerkleNode::new(hash)));
+            nodes.push(Box::new(MerkleNode::new(hash)));
         }
 
-        while leafs.len() > 1 {
+        while nodes.len() > 1 {
             let mut parents = Vec::new();
 
-            for _ in (0..leafs.len()).step_by(2) {
+            for _ in (0..nodes.len()).step_by(2) {
                 let mut hasher = DefaultHasher::new();
-                let left = leafs.pop();
-                let right = leafs.pop();
+                let left = nodes.pop();
+                let right = nodes.pop();
 
                 if let Some(left) = &left {
                     left.hash_value.hash(&mut hasher);
@@ -59,22 +59,22 @@ impl<H: Hash + Clone> MerkleTree<H> {
                 parents.push(Box::new(parent));
             }
 
-            leafs = parents;
+            nodes = parents;
         }
 
         Self {
-            merkle_root: *leafs[0].clone(),
+            merkle_root: *nodes[0].clone(),
             leafs: transactions,
         }
     }
 
-    fn get_hashes(transactions: &Vec<H>) -> Vec<u64> {
+    fn get_hashes_of_transactions(transactions: &Vec<H>) -> Vec<u64> {
         let mut transactions_hash = Vec::new();
         for transaction in transactions {
             let mut hasher = DefaultHasher::new();
             transaction.hash(&mut hasher);
-            let hash = hasher.finish();
-            transactions_hash.push(hash);
+            let transaction_hash = hasher.finish();
+            transactions_hash.push(transaction_hash);
         }
         transactions_hash
     }
@@ -161,6 +161,7 @@ pub mod test {
         let mut merkle_tree = MerkleTree::new(transactions.clone()).unwrap();
         let transaction = transactions[0].clone();
         let proof = merkle_tree.get_proof(transaction.clone());
+
         assert!(merkle_tree.verify(transaction, proof))
     }
 
@@ -170,6 +171,7 @@ pub mod test {
         let mut merkle_tree = MerkleTree::new(transactions.clone()).unwrap();
         let transaction = transactions[0].clone();
         let proof = merkle_tree.get_proof(transaction.clone());
+
         assert!(merkle_tree.verify(transaction, proof));
     }
     #[test]
@@ -183,6 +185,7 @@ pub mod test {
         let mut merkle_tree = MerkleTree::new(transactions.clone()).unwrap();
         let transaction = transactions[2].clone();
         let proof = merkle_tree.get_proof(transaction.clone());
+
         assert!(merkle_tree.verify(transaction, proof));
     }
 
@@ -192,6 +195,7 @@ pub mod test {
         let mut merkle_tree = MerkleTree::new(transactions.clone()).unwrap();
         let transaction = transactions[1].clone();
         let proof = merkle_tree.get_proof(transaction.clone());
+
         assert!(merkle_tree.verify(transaction, proof));
     }
     #[test]
@@ -207,6 +211,7 @@ pub mod test {
         let mut merkle_tree = MerkleTree::new(transactions.clone()).unwrap();
         let transaction = transactions[2].clone();
         let proof = merkle_tree.get_proof(transaction.clone());
+
         assert!(merkle_tree.verify(transaction, proof));
     }
 
@@ -216,7 +221,10 @@ pub mod test {
         let mut merkle_tree = MerkleTree::new(transactions.clone()).unwrap();
         let transaction = transactions[0].clone();
         let proof = merkle_tree.get_proof(transaction.clone());
+
+        assert_eq!(proof.len(), 0);
         assert!(merkle_tree.verify(transaction, proof));
+
         merkle_tree.add(String::from("B"));
         let transaction = transactions[0].clone();
         let proof = merkle_tree.get_proof(transaction.clone());
