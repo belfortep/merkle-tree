@@ -49,14 +49,18 @@ impl<H: Hash + Clone> MerkleTree<H> {
             for _ in (0..nodes.len()).step_by(2) {
                 let mut hasher = DefaultHasher::new();
                 let left = nodes.pop();
-                let right = nodes.pop();
+                let mut right = nodes.pop();
 
-                if let Some(left) = &left {
-                    left.hash_value.hash(&mut hasher);
+                if let Some(left_sibling) = &left {
+                    left_sibling.hash_value.hash(&mut hasher);
                 }
 
-                if let Some(right) = &right {
-                    right.hash_value.hash(&mut hasher);
+                if let Some(right_sibling) = &right {
+                    right_sibling.hash_value.hash(&mut hasher);
+                } else {
+                    println!("Si");
+                    right = left.clone();
+                    right.clone().unwrap().hash_value.hash(&mut hasher);
                 }
                 let hash = hasher.finish();
                 let mut parent = MerkleNode::new(hash);
@@ -216,7 +220,7 @@ pub mod test {
     fn a_merkle_tree_can_contains_an_odd_number_of_transactions() {
         let transactions = vec![String::from("A"), String::from("B"), String::from("C")];
         let mut merkle_tree = MerkleTree::new(transactions.clone()).unwrap();
-        let transaction = transactions[1].clone();
+        let transaction = transactions[0].clone();
         let proof = merkle_tree.get_proof(transaction.clone());
 
         assert!(merkle_tree.verify(transaction, proof));
