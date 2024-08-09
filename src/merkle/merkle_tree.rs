@@ -115,31 +115,31 @@ impl<H: Hash + Clone> MerkleTree<H> {
     ) -> bool {
         if let Some(left) = &actual_node.left {
             if left.hash_value == transaction_hash {
-                proof.push(SiblingsHash::RightSibling(
-                    actual_node.right.as_ref().unwrap().hash_value,
-                ));
+                if let Some(right_sibling) = actual_node.right.as_ref() {
+                    proof.push(SiblingsHash::RightSibling(right_sibling.hash_value));
+                }
                 return true;
             }
             if Self::recursive_get_proof(left, proof, transaction_hash) {
-                proof.push(SiblingsHash::RightSibling(
-                    actual_node.right.as_ref().unwrap().hash_value,
-                ));
+                if let Some(right_sibling) = actual_node.right.as_ref() {
+                    proof.push(SiblingsHash::RightSibling(right_sibling.hash_value));
+                }
                 return true;
             }
         }
 
         if let Some(right) = &actual_node.right {
             if right.hash_value == transaction_hash {
-                proof.push(SiblingsHash::LeftSibling(
-                    actual_node.left.as_ref().unwrap().hash_value,
-                ));
+                if let Some(left_sibling) = actual_node.left.as_ref() {
+                    proof.push(SiblingsHash::LeftSibling(left_sibling.hash_value));
+                }
                 return true;
             }
 
             if Self::recursive_get_proof(right, proof, transaction_hash) {
-                proof.push(SiblingsHash::LeftSibling(
-                    actual_node.left.as_ref().unwrap().hash_value,
-                ));
+                if let Some(left_sibling) = actual_node.left.as_ref() {
+                    proof.push(SiblingsHash::LeftSibling(left_sibling.hash_value));
+                }
                 return true;
             }
         }
@@ -253,5 +253,15 @@ pub mod test {
         let proof = merkle_tree.get_proof(transaction.clone());
         assert_eq!(proof.len(), 1);
         assert!(merkle_tree.verify(transaction, proof));
+    }
+
+    #[test]
+    fn a_merkle_tree_cant_verify_a_transaction_if_not_present() {
+        let transactions = vec![String::from("A"), String::from("B")];
+        let mut merkle_tree = MerkleTree::new(transactions.clone()).unwrap();
+        let transaction = String::from("C");
+        let proof = merkle_tree.get_proof(transaction.clone());
+
+        assert!(!merkle_tree.verify(transaction, proof));
     }
 }
