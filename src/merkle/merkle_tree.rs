@@ -53,15 +53,14 @@ impl<H: Hash + Clone> MerkleTree<H> {
 
                 if let Some(left_sibling) = &left {
                     left_sibling.hash_value.hash(&mut hasher);
+                    if let Some(right_sibling) = &right {
+                        right_sibling.hash_value.hash(&mut hasher);
+                    } else {
+                        right = left.clone();
+                        left_sibling.hash_value.hash(&mut hasher);
+                    }
                 }
 
-                if let Some(right_sibling) = &right {
-                    right_sibling.hash_value.hash(&mut hasher);
-                } else {
-                    println!("Si");
-                    right = left.clone();
-                    right.clone().unwrap().hash_value.hash(&mut hasher);
-                }
                 let hash = hasher.finish();
                 let mut parent = MerkleNode::new(hash);
                 parent.left = left;
