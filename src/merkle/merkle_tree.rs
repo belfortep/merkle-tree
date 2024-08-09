@@ -35,10 +35,32 @@ impl<H: Hash + Clone> MerkleTree<H> {
         Ok(Self::create_tree(transactions))
     }
 
+    fn create_parent_from_siblings(nodes: &mut Vec<Box<MerkleNode>>) -> MerkleNode {
+        let mut hasher = DefaultHasher::new();
+        let left = nodes.pop();
+        let mut right = nodes.pop();
+
+        if let Some(left_sibling) = &left {
+            left_sibling.hash_value.hash(&mut hasher);
+            if let Some(right_sibling) = &right {
+                right_sibling.hash_value.hash(&mut hasher);
+            } else {
+                right = left.clone();
+                left_sibling.hash_value.hash(&mut hasher);
+            }
+        }
+
+        let hash = hasher.finish();
+        let mut parent = MerkleNode::new(hash);
+        parent.left = left;
+        parent.right = right;
+        parent
+    }
+
     fn create_tree(transactions: Vec<H>) -> MerkleTree<H> {
         let transactions_hash = Self::get_hashes_of_transactions(&transactions);
 
-        let mut nodes: Vec<Box<MerkleNode>> = Vec::new();
+        let mut nodes = Vec::new();
         for hash in transactions_hash {
             nodes.push(Box::new(MerkleNode::new(hash)));
         }
@@ -47,24 +69,7 @@ impl<H: Hash + Clone> MerkleTree<H> {
             let mut parents = Vec::new();
 
             for _ in (0..nodes.len()).step_by(2) {
-                let mut hasher = DefaultHasher::new();
-                let left = nodes.pop();
-                let mut right = nodes.pop();
-
-                if let Some(left_sibling) = &left {
-                    left_sibling.hash_value.hash(&mut hasher);
-                    if let Some(right_sibling) = &right {
-                        right_sibling.hash_value.hash(&mut hasher);
-                    } else {
-                        right = left.clone();
-                        left_sibling.hash_value.hash(&mut hasher);
-                    }
-                }
-
-                let hash = hasher.finish();
-                let mut parent = MerkleNode::new(hash);
-                parent.left = left;
-                parent.right = right;
+                let parent = Self::create_parent_from_siblings(&mut nodes);
                 parents.push(Box::new(parent));
             }
 
@@ -92,9 +97,9 @@ impl<H: Hash + Clone> MerkleTree<H> {
         let mut hasher = DefaultHasher::new();
         transaction.hash(&mut hasher);
         let mut transaction = hasher.finish();
-        for p in proof {
+        for proof_hash in proof {
             hasher = DefaultHasher::new();
-            match p {
+            match proof_hash {
                 SiblingsHash::LeftSibling(left_hash) => {
                     left_hash.hash(&mut hasher);
                     transaction.hash(&mut hasher);
@@ -118,13 +123,13 @@ impl<H: Hash + Clone> MerkleTree<H> {
     ) -> bool {
         if let Some(left) = &actual_node.left {
             if left.hash_value == transaction_hash {
-                if let Some(right_sibling) = actual_node.right.as_ref() {
+                if let Some(right_sibling) = &actual_node.right {
                     proof.push(SiblingsHash::RightSibling(right_sibling.hash_value));
                 }
                 return true;
             }
             if Self::recursive_get_proof(left, proof, transaction_hash) {
-                if let Some(right_sibling) = actual_node.right.as_ref() {
+                if let Some(right_sibling) = &actual_node.right {
                     proof.push(SiblingsHash::RightSibling(right_sibling.hash_value));
                 }
                 return true;
@@ -133,14 +138,14 @@ impl<H: Hash + Clone> MerkleTree<H> {
 
         if let Some(right) = &actual_node.right {
             if right.hash_value == transaction_hash {
-                if let Some(left_sibling) = actual_node.left.as_ref() {
+                if let Some(left_sibling) = &actual_node.left {
                     proof.push(SiblingsHash::LeftSibling(left_sibling.hash_value));
                 }
                 return true;
             }
 
             if Self::recursive_get_proof(right, proof, transaction_hash) {
-                if let Some(left_sibling) = actual_node.left.as_ref() {
+                if let Some(left_sibling) = &actual_node.left {
                     proof.push(SiblingsHash::LeftSibling(left_sibling.hash_value));
                 }
                 return true;
