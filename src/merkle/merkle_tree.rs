@@ -1,4 +1,10 @@
 use std::hash::{DefaultHasher, Hash, Hasher};
+
+pub enum SiblingsHash {
+    LeftSibling(u64),
+    RightSibling(u64),
+}
+
 #[derive(Clone)]
 struct MerkleNode {
     hash_value: u64,
@@ -79,14 +85,23 @@ impl<H: Hash + Clone> MerkleTree<H> {
         transactions_hash
     }
 
-    pub fn verify(&mut self, transaction: H, proof: Vec<u64>) -> bool {
+    pub fn verify(&mut self, transaction: H, proof: Vec<SiblingsHash>) -> bool {
         let mut hasher = DefaultHasher::new();
         transaction.hash(&mut hasher);
         let mut transaction = hasher.finish();
         for p in proof {
             hasher = DefaultHasher::new();
-            p.hash(&mut hasher);
-            transaction.hash(&mut hasher);
+            match p {
+                SiblingsHash::LeftSibling(left_hash) => {
+                    left_hash.hash(&mut hasher);
+                    transaction.hash(&mut hasher);
+                }
+                SiblingsHash::RightSibling(right_hash) => {
+                    transaction.hash(&mut hasher);
+                    right_hash.hash(&mut hasher);
+                }
+            }
+
             transaction = hasher.finish();
         }
 
@@ -95,35 +110,43 @@ impl<H: Hash + Clone> MerkleTree<H> {
 
     fn recursive_get_proof(
         actual_node: &MerkleNode,
-        proof: &mut Vec<u64>,
+        proof: &mut Vec<SiblingsHash>,
         transaction_hash: u64,
     ) -> bool {
         if let Some(left) = &actual_node.left {
             if left.hash_value == transaction_hash {
-                proof.push(actual_node.right.as_ref().unwrap().hash_value);
+                proof.push(SiblingsHash::RightSibling(
+                    actual_node.right.as_ref().unwrap().hash_value,
+                ));
                 return true;
             }
             if Self::recursive_get_proof(left, proof, transaction_hash) {
-                proof.push(actual_node.right.as_ref().unwrap().hash_value);
+                proof.push(SiblingsHash::RightSibling(
+                    actual_node.right.as_ref().unwrap().hash_value,
+                ));
                 return true;
             }
         }
 
         if let Some(right) = &actual_node.right {
             if right.hash_value == transaction_hash {
-                proof.push(actual_node.left.as_ref().unwrap().hash_value);
+                proof.push(SiblingsHash::LeftSibling(
+                    actual_node.left.as_ref().unwrap().hash_value,
+                ));
                 return true;
             }
 
             if Self::recursive_get_proof(right, proof, transaction_hash) {
-                proof.push(actual_node.left.as_ref().unwrap().hash_value);
+                proof.push(SiblingsHash::LeftSibling(
+                    actual_node.left.as_ref().unwrap().hash_value,
+                ));
                 return true;
             }
         }
         false
     }
 
-    pub fn get_proof(&mut self, transaction: H) -> Vec<u64> {
+    pub fn get_proof(&mut self, transaction: H) -> Vec<SiblingsHash> {
         let mut proof = Vec::new();
         let mut hasher = DefaultHasher::new();
         transaction.hash(&mut hasher);
@@ -183,7 +206,7 @@ pub mod test {
             String::from("D"),
         ];
         let mut merkle_tree = MerkleTree::new(transactions.clone()).unwrap();
-        let transaction = transactions[2].clone();
+        let transaction = transactions[0].clone();
         let proof = merkle_tree.get_proof(transaction.clone());
 
         assert!(merkle_tree.verify(transaction, proof));
@@ -209,7 +232,7 @@ pub mod test {
             String::from("F"),
         ];
         let mut merkle_tree = MerkleTree::new(transactions.clone()).unwrap();
-        let transaction = transactions[2].clone();
+        let transaction = transactions[0].clone();
         let proof = merkle_tree.get_proof(transaction.clone());
 
         assert!(merkle_tree.verify(transaction, proof));
