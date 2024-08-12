@@ -31,8 +31,12 @@ impl MerkleNode {
 }
 
 impl<H: Hash + Clone> MerkleTree<H> {
-    pub fn new(transactions: Vec<H>) -> Self {
-        Self::create_tree(transactions)
+    pub fn new(transactions: Vec<H>) -> Result<Self, &'static str> {
+        if transactions.is_empty() {
+            return Err("Can't create a tree without elements");
+        }
+
+        Ok(Self::create_tree(transactions))
     }
 
     fn create_parent_from_siblings(
@@ -182,17 +186,17 @@ pub mod test {
     use crate::merkle::merkle_tree::MerkleTree;
 
     #[test]
-    fn a_new_merkle_tree_contain_nothing() {
+    fn cant_create_a_merkle_tree_without_transactions() {
         let transactions: Vec<String> = Vec::new();
         let merkle_tree = MerkleTree::new(transactions);
 
-        assert!(merkle_tree.leafs.is_empty());
+        assert!(merkle_tree.is_err());
     }
 
     #[test]
     fn a_merkle_tree_can_contain_one_transaction() {
         let transactions = vec![String::from("A")];
-        let mut merkle_tree = MerkleTree::new(transactions.clone());
+        let mut merkle_tree = MerkleTree::new(transactions.clone()).unwrap();
         let transaction = transactions[0].clone();
         let proof = merkle_tree.get_proof(transaction.clone());
 
@@ -202,7 +206,7 @@ pub mod test {
     #[test]
     fn a_merkle_tree_can_contain_one_level_of_transactions() {
         let transactions = vec![String::from("A"), String::from("B")];
-        let mut merkle_tree = MerkleTree::new(transactions.clone());
+        let mut merkle_tree = MerkleTree::new(transactions.clone()).unwrap();
         let transaction = transactions[0].clone();
         let proof = merkle_tree.get_proof(transaction.clone());
 
@@ -216,7 +220,7 @@ pub mod test {
             String::from("C"),
             String::from("D"),
         ];
-        let mut merkle_tree = MerkleTree::new(transactions.clone());
+        let mut merkle_tree = MerkleTree::new(transactions.clone()).unwrap();
         let transaction = transactions[0].clone();
         let proof = merkle_tree.get_proof(transaction.clone());
 
@@ -226,7 +230,7 @@ pub mod test {
     #[test]
     fn a_merkle_tree_can_contain_an_odd_number_of_transactions() {
         let transactions = vec![String::from("A"), String::from("B"), String::from("C")];
-        let mut merkle_tree = MerkleTree::new(transactions.clone());
+        let mut merkle_tree = MerkleTree::new(transactions.clone()).unwrap();
         let transaction = transactions[0].clone();
         let proof = merkle_tree.get_proof(transaction.clone());
 
@@ -242,7 +246,7 @@ pub mod test {
             String::from("E"),
             String::from("F"),
         ];
-        let mut merkle_tree = MerkleTree::new(transactions.clone());
+        let mut merkle_tree = MerkleTree::new(transactions.clone()).unwrap();
         let transaction = transactions[0].clone();
         let proof = merkle_tree.get_proof(transaction.clone());
 
@@ -252,7 +256,7 @@ pub mod test {
     #[test]
     fn a_merkle_tree_can_add_new_elements() {
         let transactions = vec![String::from("A")];
-        let mut merkle_tree = MerkleTree::new(transactions.clone());
+        let mut merkle_tree = MerkleTree::new(transactions.clone()).unwrap();
         let transaction = transactions[0].clone();
         let proof = merkle_tree.get_proof(transaction.clone());
 
@@ -269,7 +273,7 @@ pub mod test {
     #[test]
     fn a_merkle_tree_cant_verify_a_transaction_if_not_present() {
         let transactions = vec![String::from("A"), String::from("B")];
-        let mut merkle_tree = MerkleTree::new(transactions.clone());
+        let mut merkle_tree = MerkleTree::new(transactions.clone()).unwrap();
         let transaction = String::from("C");
         let proof = merkle_tree.get_proof(transaction.clone());
 
