@@ -172,11 +172,7 @@ impl<H: Hash + Clone> MerkleTree<H> {
 
     pub fn add(&mut self, transaction: H) {
         self.leafs.push(transaction);
-        let mut leafs = Vec::new();
-        for leaf in &self.leafs {
-            leafs.push(leaf.clone());
-        }
-        self.merkle_root = Self::create_tree(leafs.clone()).merkle_root;
+        self.merkle_root = Self::create_tree(self.leafs.clone()).merkle_root;
     }
 }
 
