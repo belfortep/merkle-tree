@@ -17,11 +17,15 @@ pub struct MerkleTree<H: Hash + Clone> {
 }
 
 impl MerkleNode {
-    pub fn new(hash_value: u64) -> Self {
+    pub fn new(
+        hash_value: u64,
+        left_son: Option<Box<MerkleNode>>,
+        right_son: Option<Box<MerkleNode>>,
+    ) -> Self {
         Self {
             hash_value,
-            left_son: None,
-            right_son: None,
+            left_son,
+            right_son,
         }
     }
 }
@@ -35,26 +39,22 @@ impl<H: Hash + Clone> MerkleTree<H> {
         Ok(Self::create_tree(transactions))
     }
 
-    fn create_parent_from_siblings(nodes: &mut Vec<Box<MerkleNode>>) -> MerkleNode {
+    fn create_parent_from_siblings(
+        left_son: Option<Box<MerkleNode>>,
+        mut right_son: Option<Box<MerkleNode>>,
+    ) -> MerkleNode {
         let mut hasher = DefaultHasher::new();
-        let left = nodes.pop();
-        let mut right = nodes.pop();
 
-        if let Some(left_sibling) = &left {
+        if let Some(left_sibling) = &left_son {
             left_sibling.hash_value.hash(&mut hasher);
-            if let Some(right_sibling) = &right {
+            if let Some(right_sibling) = &right_son {
                 right_sibling.hash_value.hash(&mut hasher);
             } else {
-                right = left.clone();
+                right_son = left_son.clone();
                 left_sibling.hash_value.hash(&mut hasher);
             }
         }
-
-        let hash = hasher.finish();
-        let mut parent = MerkleNode::new(hash);
-        parent.left_son = left;
-        parent.right_son = right;
-        parent
+        MerkleNode::new(hasher.finish(), left_son, right_son)
     }
 
     fn create_tree(transactions: Vec<H>) -> MerkleTree<H> {
@@ -62,14 +62,14 @@ impl<H: Hash + Clone> MerkleTree<H> {
 
         let mut nodes = Vec::new();
         for hash in transactions_hash {
-            nodes.push(Box::new(MerkleNode::new(hash)));
+            nodes.push(Box::new(MerkleNode::new(hash, None, None)));
         }
 
         while nodes.len() > 1 {
             let mut parents = Vec::new();
 
             for _ in (0..nodes.len()).step_by(2) {
-                let parent = Self::create_parent_from_siblings(&mut nodes);
+                let parent = Self::create_parent_from_siblings(nodes.pop(), nodes.pop());
                 parents.push(Box::new(parent));
             }
 
