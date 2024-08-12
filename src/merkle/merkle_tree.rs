@@ -120,35 +120,35 @@ impl<H: Hash + Clone> MerkleTree<H> {
     }
 
     fn recursive_get_proof(
-        actual_node: &MerkleNode,
+        current_node: &MerkleNode,
         proof: &mut Vec<SiblingHash>,
         transaction_hash: u64,
     ) -> bool {
-        if let Some(left) = &actual_node.left_son {
+        if let Some(left) = &current_node.left_son {
             if left.hash_value == transaction_hash {
-                if let Some(right_sibling) = &actual_node.right_son {
+                if let Some(right_sibling) = &current_node.right_son {
                     proof.push(SiblingHash::Right(right_sibling.hash_value));
                 }
                 return true;
             }
             if Self::recursive_get_proof(left, proof, transaction_hash) {
-                if let Some(right_sibling) = &actual_node.right_son {
+                if let Some(right_sibling) = &current_node.right_son {
                     proof.push(SiblingHash::Right(right_sibling.hash_value));
                 }
                 return true;
             }
         }
 
-        if let Some(right) = &actual_node.right_son {
+        if let Some(right) = &current_node.right_son {
             if right.hash_value == transaction_hash {
-                if let Some(left_sibling) = &actual_node.left_son {
+                if let Some(left_sibling) = &current_node.left_son {
                     proof.push(SiblingHash::Left(left_sibling.hash_value));
                 }
                 return true;
             }
 
             if Self::recursive_get_proof(right, proof, transaction_hash) {
-                if let Some(left_sibling) = &actual_node.left_son {
+                if let Some(left_sibling) = &current_node.left_son {
                     proof.push(SiblingHash::Left(left_sibling.hash_value));
                 }
                 return true;
