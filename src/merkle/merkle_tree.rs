@@ -190,7 +190,7 @@ pub mod test {
     }
 
     #[test]
-    fn a_merkle_tree_can_contains_one_transaction() {
+    fn a_merkle_tree_can_contain_one_transaction() {
         let transactions = vec![String::from("A")];
         let mut merkle_tree = MerkleTree::new(transactions.clone());
         let transaction = transactions[0].clone();
