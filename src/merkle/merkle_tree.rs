@@ -1,8 +1,8 @@
 use std::hash::{DefaultHasher, Hash, Hasher};
 
-pub enum SiblingsHash {
-    LeftSibling(u64),
-    RightSibling(u64),
+pub enum SiblingHash {
+    Left(u64),
+    Right(u64),
 }
 
 #[derive(Clone)]
