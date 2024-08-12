@@ -183,7 +183,7 @@ impl<H: Hash + Clone> MerkleTree<H> {
 #[cfg(test)]
 pub mod test {
 
-    use crate::merkle::merkle_tree::MerkleTree;
+    use crate::merkle_tree::MerkleTree;
 
     #[test]
     fn cant_create_a_merkle_tree_without_transactions() {
