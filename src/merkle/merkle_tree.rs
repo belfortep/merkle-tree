@@ -8,8 +8,8 @@ pub enum SiblingsHash {
 #[derive(Clone)]
 struct MerkleNode {
     hash_value: u64,
-    left: Option<Box<MerkleNode>>,
-    right: Option<Box<MerkleNode>>,
+    left_son: Option<Box<MerkleNode>>,
+    right_son: Option<Box<MerkleNode>>,
 }
 pub struct MerkleTree<H: Hash + Clone> {
     merkle_root: MerkleNode,
@@ -20,8 +20,8 @@ impl MerkleNode {
     pub fn new(hash_value: u64) -> Self {
         Self {
             hash_value,
-            left: None,
-            right: None,
+            left_son: None,
+            right_son: None,
         }
     }
 }
@@ -52,8 +52,8 @@ impl<H: Hash + Clone> MerkleTree<H> {
 
         let hash = hasher.finish();
         let mut parent = MerkleNode::new(hash);
-        parent.left = left;
-        parent.right = right;
+        parent.left_son = left;
+        parent.right_son = right;
         parent
     }
 
@@ -121,31 +121,31 @@ impl<H: Hash + Clone> MerkleTree<H> {
         proof: &mut Vec<SiblingsHash>,
         transaction_hash: u64,
     ) -> bool {
-        if let Some(left) = &actual_node.left {
+        if let Some(left) = &actual_node.left_son {
             if left.hash_value == transaction_hash {
-                if let Some(right_sibling) = &actual_node.right {
+                if let Some(right_sibling) = &actual_node.right_son {
                     proof.push(SiblingsHash::RightSibling(right_sibling.hash_value));
                 }
                 return true;
             }
             if Self::recursive_get_proof(left, proof, transaction_hash) {
-                if let Some(right_sibling) = &actual_node.right {
+                if let Some(right_sibling) = &actual_node.right_son {
                     proof.push(SiblingsHash::RightSibling(right_sibling.hash_value));
                 }
                 return true;
             }
         }
 
-        if let Some(right) = &actual_node.right {
+        if let Some(right) = &actual_node.right_son {
             if right.hash_value == transaction_hash {
-                if let Some(left_sibling) = &actual_node.left {
+                if let Some(left_sibling) = &actual_node.left_son {
                     proof.push(SiblingsHash::LeftSibling(left_sibling.hash_value));
                 }
                 return true;
             }
 
             if Self::recursive_get_proof(right, proof, transaction_hash) {
-                if let Some(left_sibling) = &actual_node.left {
+                if let Some(left_sibling) = &actual_node.left_son {
                     proof.push(SiblingsHash::LeftSibling(left_sibling.hash_value));
                 }
                 return true;
