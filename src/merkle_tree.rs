@@ -72,8 +72,10 @@ impl<H: Hash + Clone> MerkleTree<H> {
         while nodes.len() > 1 {
             let mut parents = Vec::new();
 
-            for _ in (0..nodes.len()).step_by(2) {
-                let parent = Self::create_parent_from_siblings(nodes.pop(), nodes.pop());
+            let mut iter = nodes.into_iter();
+
+            while let (Some(left_son), right_son) = (iter.next(), iter.next()) {
+                let parent = Self::create_parent_from_siblings(Some(left_son), right_son);
                 parents.push(Box::new(parent));
             }
 
