@@ -83,14 +83,14 @@ impl<H: Hash + Clone> MerkleTree<H> {
     }
 
     fn get_hashes_of_transactions(transactions: &Vec<H>) -> Vec<u64> {
-        let mut transactions_hash = Vec::new();
-        for transaction in transactions {
-            let mut hasher = DefaultHasher::new();
-            transaction.hash(&mut hasher);
-            let transaction_hash = hasher.finish();
-            transactions_hash.push(transaction_hash);
-        }
-        transactions_hash
+        transactions
+            .iter()
+            .map(|transaction| {
+                let mut hasher = DefaultHasher::new();
+                transaction.hash(&mut hasher);
+                hasher.finish()
+            })
+            .collect()
     }
 
     pub fn verify(&mut self, transaction: H, proof: Vec<SiblingHash>) -> bool {
