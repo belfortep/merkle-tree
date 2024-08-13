@@ -86,7 +86,7 @@ impl<H: Hash + Clone> MerkleTree<H> {
         })
     }
 
-    fn get_hashes_of_transactions(transactions: &Vec<H>) -> Vec<u64> {
+    fn get_hashes_of_transactions(transactions: &[H]) -> Vec<u64> {
         transactions
             .iter()
             .map(|transaction| {
@@ -132,14 +132,12 @@ impl<H: Hash + Clone> MerkleTree<H> {
                     proof.push(SiblingHash::Right(right_sibling.hash_value))
                 });
                 added_proof = true;
-                return;
             }
             if Self::recursive_get_proof(left, proof, transaction_hash) {
                 current_node.right_son.as_ref().inspect(|right_sibling| {
                     proof.push(SiblingHash::Right(right_sibling.hash_value))
                 });
                 added_proof = true;
-                return;
             }
         });
 
@@ -150,7 +148,6 @@ impl<H: Hash + Clone> MerkleTree<H> {
                     .as_ref()
                     .inspect(|left_sibling| proof.push(SiblingHash::Left(left_sibling.hash_value)));
                 added_proof = true;
-                return;
             }
             if Self::recursive_get_proof(right, proof, transaction_hash) {
                 current_node
@@ -158,7 +155,6 @@ impl<H: Hash + Clone> MerkleTree<H> {
                     .as_ref()
                     .inspect(|left_sibling| proof.push(SiblingHash::Left(left_sibling.hash_value)));
                 added_proof = true;
-                return;
             }
         });
 
