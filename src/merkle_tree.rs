@@ -32,72 +32,69 @@ impl MerkleNode {
 
 impl<H: Hash + Clone> MerkleTree<H> {
     pub fn new(transactions: Vec<H>) -> Result<Self, &'static str> {
+        Self::create_tree(transactions)
+    }
+
+    // Fathers must have at least one son, if it does not have one, we clone the left one
+    fn create_parent_from_siblings(
+        left_son: Box<MerkleNode>,
+        mut right_son: Option<Box<MerkleNode>>,
+    ) -> MerkleNode {
+        let mut hasher = DefaultHasher::new();
+        left_son.hash_value.hash(&mut hasher);
+
+        match &right_son {
+            Some(right_sibling) => {
+                right_sibling.hash_value.hash(&mut hasher);
+            }
+            None => {
+                right_son = Some(left_son.clone());
+                left_son.hash_value.hash(&mut hasher);
+            }
+        }
+
+        MerkleNode::new(hasher.finish(), Some(left_son), right_son)
+    }
+
+    fn create_tree(transactions: Vec<H>) -> Result<MerkleTree<H>, &'static str> {
         if transactions.is_empty() {
             return Err("Can't create a tree without elements");
         }
 
-        Ok(Self::create_tree(transactions))
-    }
-
-    fn create_parent_from_siblings(
-        left_son: Option<Box<MerkleNode>>,
-        mut right_son: Option<Box<MerkleNode>>,
-    ) -> MerkleNode {
-        let mut hasher = DefaultHasher::new();
-
-        if let Some(left_sibling) = &left_son {
-            left_sibling.hash_value.hash(&mut hasher);
-            if let Some(right_sibling) = &right_son {
-                right_sibling.hash_value.hash(&mut hasher);
-            } else {
-                right_son = left_son.clone();
-                left_sibling.hash_value.hash(&mut hasher);
-            }
-        }
-        MerkleNode::new(hasher.finish(), left_son, right_son)
-    }
-
-    fn create_tree(transactions: Vec<H>) -> MerkleTree<H> {
-        if transactions.is_empty() {
-            return Self {
-                merkle_root: MerkleNode::new(0, None, None),
-                leafs: transactions,
-            };
-        }
-
         let transactions_hash = Self::get_hashes_of_transactions(&transactions);
+        let mut nodes: Vec<Box<MerkleNode>> = transactions_hash
+            .into_iter()
+            .map(|hash| Box::new(MerkleNode::new(hash, None, None)))
+            .collect();
 
-        let mut nodes = Vec::new();
-        for hash in transactions_hash {
-            nodes.push(Box::new(MerkleNode::new(hash, None, None)));
-        }
-
+        // We loop all the elements and construct the next level of the tree, we stop once there is only one element (the root)
         while nodes.len() > 1 {
             let mut parents = Vec::new();
+            let mut iter = nodes.into_iter();
 
-            for _ in (0..nodes.len()).step_by(2) {
-                let parent = Self::create_parent_from_siblings(nodes.pop(), nodes.pop());
+            while let (Some(left_son), right_son) = (iter.next(), iter.next()) {
+                let parent = Self::create_parent_from_siblings(left_son, right_son);
                 parents.push(Box::new(parent));
             }
 
             nodes = parents;
         }
 
-        Self {
+        Ok(Self {
             merkle_root: *nodes[0].clone(),
             leafs: transactions,
-        }
+        })
     }
 
-    fn get_hashes_of_transactions(transactions: &Vec<H>) -> Vec<u64> {
-        let mut transactions_hash = Vec::new();
-        for transaction in transactions {
-            let mut hasher = DefaultHasher::new();
-            transaction.hash(&mut hasher);
-            let transaction_hash = hasher.finish();
-            transactions_hash.push(transaction_hash);
-        }
-        transactions_hash
+    fn get_hashes_of_transactions(transactions: &[H]) -> Vec<u64> {
+        transactions
+            .iter()
+            .map(|transaction| {
+                let mut hasher = DefaultHasher::new();
+                transaction.hash(&mut hasher);
+                hasher.finish()
+            })
+            .collect()
     }
 
     pub fn verify(&mut self, transaction: H, proof: Vec<SiblingHash>) -> bool {
@@ -128,37 +125,40 @@ impl<H: Hash + Clone> MerkleTree<H> {
         proof: &mut Vec<SiblingHash>,
         transaction_hash: u64,
     ) -> bool {
-        if let Some(left) = &current_node.left_son {
+        let mut added_proof = false;
+        current_node.left_son.as_ref().inspect(|left| {
             if left.hash_value == transaction_hash {
-                if let Some(right_sibling) = &current_node.right_son {
-                    proof.push(SiblingHash::Right(right_sibling.hash_value));
-                }
-                return true;
+                current_node.right_son.as_ref().inspect(|right_sibling| {
+                    proof.push(SiblingHash::Right(right_sibling.hash_value))
+                });
+                added_proof = true;
             }
             if Self::recursive_get_proof(left, proof, transaction_hash) {
-                if let Some(right_sibling) = &current_node.right_son {
-                    proof.push(SiblingHash::Right(right_sibling.hash_value));
-                }
-                return true;
+                current_node.right_son.as_ref().inspect(|right_sibling| {
+                    proof.push(SiblingHash::Right(right_sibling.hash_value))
+                });
+                added_proof = true;
             }
-        }
+        });
 
-        if let Some(right) = &current_node.right_son {
+        current_node.right_son.as_ref().inspect(|right| {
             if right.hash_value == transaction_hash {
-                if let Some(left_sibling) = &current_node.left_son {
-                    proof.push(SiblingHash::Left(left_sibling.hash_value));
-                }
-                return true;
+                current_node
+                    .left_son
+                    .as_ref()
+                    .inspect(|left_sibling| proof.push(SiblingHash::Left(left_sibling.hash_value)));
+                added_proof = true;
             }
-
             if Self::recursive_get_proof(right, proof, transaction_hash) {
-                if let Some(left_sibling) = &current_node.left_son {
-                    proof.push(SiblingHash::Left(left_sibling.hash_value));
-                }
-                return true;
+                current_node
+                    .right_son
+                    .as_ref()
+                    .inspect(|left_sibling| proof.push(SiblingHash::Left(left_sibling.hash_value)));
+                added_proof = true;
             }
-        }
-        false
+        });
+
+        added_proof
     }
 
     pub fn get_proof(&mut self, transaction: H) -> Vec<SiblingHash> {
@@ -166,13 +166,13 @@ impl<H: Hash + Clone> MerkleTree<H> {
         let mut hasher = DefaultHasher::new();
         transaction.hash(&mut hasher);
         Self::recursive_get_proof(&self.merkle_root, &mut proof, hasher.finish());
-
         proof
     }
 
-    pub fn add(&mut self, transaction: H) {
+    pub fn add(&mut self, transaction: H) -> Result<(), &'static str> {
         self.leafs.push(transaction);
-        self.merkle_root = Self::create_tree(self.leafs.clone()).merkle_root;
+        self.merkle_root = Self::create_tree(self.leafs.clone())?.merkle_root;
+        Ok(())
     }
 }
 
@@ -259,7 +259,7 @@ pub mod test {
         assert_eq!(proof.len(), 0);
         assert!(merkle_tree.verify(transaction, proof));
 
-        merkle_tree.add(String::from("B"));
+        merkle_tree.add(String::from("B")).unwrap();
         let transaction = transactions[0].clone();
         let proof = merkle_tree.get_proof(transaction.clone());
         assert_eq!(proof.len(), 1);
@@ -274,5 +274,27 @@ pub mod test {
         let proof = merkle_tree.get_proof(transaction.clone());
 
         assert!(!merkle_tree.verify(transaction, proof));
+    }
+
+    #[test]
+    fn a_merkle_tree_can_have_generic_transactions() {
+        let transactions = vec![1000, 1500, 2000, 3000, 4000, 5500, 7000, 8700];
+        let mut merkle_tree = MerkleTree::new(transactions.clone()).unwrap();
+        let transaction = transactions[0].clone();
+        let proof = merkle_tree.get_proof(transaction.clone());
+
+        assert!(merkle_tree.verify(transaction, proof));
+
+        let transactions = vec![
+            "De aquel amor",
+            "De musica ligera",
+            "Nada nos libra,",
+            "Nada mas queda",
+        ];
+        let mut merkle_tree = MerkleTree::new(transactions.clone()).unwrap();
+        let transaction = transactions[0];
+        let proof = merkle_tree.get_proof(transaction);
+
+        assert!(merkle_tree.verify(transaction, proof));
     }
 }
