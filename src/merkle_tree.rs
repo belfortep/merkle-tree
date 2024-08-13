@@ -32,11 +32,7 @@ impl MerkleNode {
 
 impl<H: Hash + Clone> MerkleTree<H> {
     pub fn new(transactions: Vec<H>) -> Result<Self, &'static str> {
-        if transactions.is_empty() {
-            return Err("Can't create a tree without elements");
-        }
-
-        Ok(Self::create_tree(transactions))
+        Self::create_tree(transactions)
     }
 
     fn create_parent_from_siblings(
@@ -57,12 +53,9 @@ impl<H: Hash + Clone> MerkleTree<H> {
         MerkleNode::new(hasher.finish(), left_son, right_son)
     }
 
-    fn create_tree(transactions: Vec<H>) -> MerkleTree<H> {
+    fn create_tree(transactions: Vec<H>) -> Result<MerkleTree<H>, &'static str> {
         if transactions.is_empty() {
-            return Self {
-                merkle_root: MerkleNode::new(0, None, None),
-                leafs: transactions,
-            };
+            return Err("Can't create a tree without elements");
         }
 
         let transactions_hash = Self::get_hashes_of_transactions(&transactions);
@@ -83,10 +76,10 @@ impl<H: Hash + Clone> MerkleTree<H> {
             nodes = parents;
         }
 
-        Self {
+        Ok(Self {
             merkle_root: *nodes[0].clone(),
             leafs: transactions,
-        }
+        })
     }
 
     fn get_hashes_of_transactions(transactions: &Vec<H>) -> Vec<u64> {
@@ -170,9 +163,10 @@ impl<H: Hash + Clone> MerkleTree<H> {
         proof
     }
 
-    pub fn add(&mut self, transaction: H) {
+    pub fn add(&mut self, transaction: H) -> Result<(), &'static str> {
         self.leafs.push(transaction);
-        self.merkle_root = Self::create_tree(self.leafs.clone()).merkle_root;
+        self.merkle_root = Self::create_tree(self.leafs.clone())?.merkle_root;
+        Ok(())
     }
 }
 
@@ -259,7 +253,7 @@ pub mod test {
         assert_eq!(proof.len(), 0);
         assert!(merkle_tree.verify(transaction, proof));
 
-        merkle_tree.add(String::from("B"));
+        merkle_tree.add(String::from("B")).unwrap();
         let transaction = transactions[0].clone();
         let proof = merkle_tree.get_proof(transaction.clone());
         assert_eq!(proof.len(), 1);
