@@ -269,4 +269,26 @@ pub mod test {
 
         assert!(!merkle_tree.verify(transaction, proof));
     }
+
+    #[test]
+    fn a_merkle_tree_can_have_generic_transactions() {
+        let transactions = vec![1000, 1500, 2000, 3000, 4000, 5500, 7000, 8700];
+        let mut merkle_tree = MerkleTree::new(transactions.clone()).unwrap();
+        let transaction = transactions[0].clone();
+        let proof = merkle_tree.get_proof(transaction.clone());
+
+        assert!(merkle_tree.verify(transaction, proof));
+
+        let transactions = vec![
+            "De aquel amor",
+            "De musica ligera",
+            "Nada nos libra,",
+            "Nada mas queda",
+        ];
+        let mut merkle_tree = MerkleTree::new(transactions.clone()).unwrap();
+        let transaction = transactions[0];
+        let proof = merkle_tree.get_proof(transaction);
+
+        assert!(merkle_tree.verify(transaction, proof));
+    }
 }
