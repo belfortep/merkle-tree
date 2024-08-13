@@ -36,25 +36,23 @@ impl<H: Hash + Clone> MerkleTree<H> {
     }
 
     fn create_parent_from_siblings(
-        left_son: Option<Box<MerkleNode>>,
+        left_son: Box<MerkleNode>,
         mut right_son: Option<Box<MerkleNode>>,
     ) -> MerkleNode {
         let mut hasher = DefaultHasher::new();
+        left_son.hash_value.hash(&mut hasher);
 
-        left_son.as_ref().map(|left_sibling| {
-            left_sibling.hash_value.hash(&mut hasher);
-            match &right_son {
-                Some(right_sibling) => {
-                    right_sibling.hash_value.hash(&mut hasher);
-                }
-                None => {
-                    right_son = left_son.clone();
-                    left_sibling.hash_value.hash(&mut hasher);
-                }
+        match &right_son {
+            Some(right_sibling) => {
+                right_sibling.hash_value.hash(&mut hasher);
             }
-        });
+            None => {
+                right_son = Some(left_son.clone());
+                left_son.hash_value.hash(&mut hasher);
+            }
+        }
 
-        MerkleNode::new(hasher.finish(), left_son, right_son)
+        MerkleNode::new(hasher.finish(), Some(left_son), right_son)
     }
 
     fn create_tree(transactions: Vec<H>) -> Result<MerkleTree<H>, &'static str> {
@@ -70,11 +68,10 @@ impl<H: Hash + Clone> MerkleTree<H> {
 
         while nodes.len() > 1 {
             let mut parents = Vec::new();
-
             let mut iter = nodes.into_iter();
 
             while let (Some(left_son), right_son) = (iter.next(), iter.next()) {
-                let parent = Self::create_parent_from_siblings(Some(left_son), right_son);
+                let parent = Self::create_parent_from_siblings(left_son, right_son);
                 parents.push(Box::new(parent));
             }
 
