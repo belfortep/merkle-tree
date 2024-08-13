@@ -63,11 +63,10 @@ impl<H: Hash + Clone> MerkleTree<H> {
         }
 
         let transactions_hash = Self::get_hashes_of_transactions(&transactions);
-
-        let mut nodes = Vec::new();
-        for hash in transactions_hash {
-            nodes.push(Box::new(MerkleNode::new(hash, None, None)));
-        }
+        let mut nodes: Vec<Box<MerkleNode>> = transactions_hash
+            .into_iter()
+            .map(|hash| Box::new(MerkleNode::new(hash, None, None)))
+            .collect();
 
         while nodes.len() > 1 {
             let mut parents = Vec::new();
