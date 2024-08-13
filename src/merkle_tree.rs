@@ -41,15 +41,19 @@ impl<H: Hash + Clone> MerkleTree<H> {
     ) -> MerkleNode {
         let mut hasher = DefaultHasher::new();
 
-        if let Some(left_sibling) = &left_son {
+        left_son.as_ref().map(|left_sibling| {
             left_sibling.hash_value.hash(&mut hasher);
-            if let Some(right_sibling) = &right_son {
-                right_sibling.hash_value.hash(&mut hasher);
-            } else {
-                right_son = left_son.clone();
-                left_sibling.hash_value.hash(&mut hasher);
+            match &right_son {
+                Some(right_sibling) => {
+                    right_sibling.hash_value.hash(&mut hasher);
+                }
+                None => {
+                    right_son = left_son.clone();
+                    left_sibling.hash_value.hash(&mut hasher);
+                }
             }
-        }
+        });
+
         MerkleNode::new(hasher.finish(), left_son, right_son)
     }
 
