@@ -81,8 +81,7 @@ impl<H: AsRef<[u8]> + Clone> MerkleTree<H> {
         }
 
         let mut nodes: Vec<MerkleNode> = transactions
-            .clone()
-            .into_iter()
+            .iter()
             .map(|transaction| {
                 let mut hasher = Sha3_256::new();
                 hasher.update(transaction);
