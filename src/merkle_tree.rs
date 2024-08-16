@@ -9,27 +9,27 @@ pub enum SiblingHash {
 }
 
 #[derive(Clone)]
-struct InnerNode<H: Hash + Clone> {
+struct InnerNode {
     hash_value: u64,
-    left_son: Rc<MerkleNode<H>>,
-    right_son: Rc<MerkleNode<H>>,
+    left_son: Rc<MerkleNode>,
+    right_son: Rc<MerkleNode>,
 }
 #[derive(Clone)]
-struct LeafNode<H: Hash + Clone> {
+struct LeafNode {
     hash_value: u64,
-    data: H,
 }
 
 #[derive(Clone)]
-enum MerkleNode<H: Hash + Clone> {
-    Inner(InnerNode<H>),
-    Leaf(LeafNode<H>),
+enum MerkleNode {
+    Inner(InnerNode),
+    Leaf(LeafNode),
 }
 pub struct MerkleTree<H: Hash + Clone> {
-    merkle_root: MerkleNode<H>,
+    merkle_root: MerkleNode,
+    leafs: Vec<H>,
 }
 
-impl<H: Hash + Clone> MerkleNode<H> {
+impl MerkleNode {
     pub fn get_hash_value(&self) -> u64 {
         match self {
             Self::Inner(node) => node.hash_value,
@@ -38,8 +38,8 @@ impl<H: Hash + Clone> MerkleNode<H> {
     }
 }
 
-impl<H: Hash + Clone> InnerNode<H> {
-    pub fn new(hash_value: u64, left_son: Rc<MerkleNode<H>>, right_son: Rc<MerkleNode<H>>) -> Self {
+impl InnerNode {
+    pub fn new(hash_value: u64, left_son: Rc<MerkleNode>, right_son: Rc<MerkleNode>) -> Self {
         Self {
             hash_value,
             left_son,
@@ -48,9 +48,9 @@ impl<H: Hash + Clone> InnerNode<H> {
     }
 }
 
-impl<H: Hash + Clone> LeafNode<H> {
-    pub fn new(hash_value: u64, data: H) -> Self {
-        Self { hash_value, data }
+impl LeafNode {
+    pub fn new(hash_value: u64) -> Self {
+        Self { hash_value }
     }
 }
 
@@ -61,9 +61,9 @@ impl<H: Hash + Clone> MerkleTree<H> {
 
     // Fathers must have at least one son, if it does not have one, we clone the left one
     fn create_parent_from_siblings(
-        left_son: MerkleNode<H>,
-        mut right_son: Option<MerkleNode<H>>,
-    ) -> MerkleNode<H> {
+        left_son: MerkleNode,
+        mut right_son: Option<MerkleNode>,
+    ) -> MerkleNode {
         let mut hasher = DefaultHasher::new();
 
         left_son.get_hash_value().hash(&mut hasher);
@@ -90,12 +90,13 @@ impl<H: Hash + Clone> MerkleTree<H> {
             return Err("Can't create a tree without elements");
         }
 
-        let mut nodes: Vec<MerkleNode<H>> = transactions
+        let mut nodes: Vec<MerkleNode> = transactions
+            .clone()
             .into_iter()
             .map(|transaction| {
                 let mut hasher = DefaultHasher::new();
                 transaction.hash(&mut hasher);
-                MerkleNode::Leaf(LeafNode::new(hasher.finish(), transaction))
+                MerkleNode::Leaf(LeafNode::new(hasher.finish()))
             })
             .collect();
 
@@ -115,18 +116,8 @@ impl<H: Hash + Clone> MerkleTree<H> {
 
         Ok(Self {
             merkle_root: nodes[0].clone(),
+            leafs: transactions,
         })
-    }
-
-    fn get_hashes_of_transactions(transactions: &[H]) -> Vec<u64> {
-        transactions
-            .iter()
-            .map(|transaction| {
-                let mut hasher = DefaultHasher::new();
-                transaction.hash(&mut hasher);
-                hasher.finish()
-            })
-            .collect()
     }
 
     pub fn verify(&mut self, transaction: H, proof: Vec<SiblingHash>) -> bool {
@@ -153,7 +144,7 @@ impl<H: Hash + Clone> MerkleTree<H> {
     }
 
     fn recursive_get_proof(
-        current_node: &MerkleNode<H>,
+        current_node: &MerkleNode,
         proof: &mut Vec<SiblingHash>,
         transaction_hash: u64,
     ) -> bool {
@@ -194,8 +185,8 @@ impl<H: Hash + Clone> MerkleTree<H> {
     }
 
     pub fn add(&mut self, transaction: H) -> Result<(), &'static str> {
-        //self.leafs.push(transaction);
-        //self.merkle_root = Self::create_tree(self.leafs.clone())?.merkle_root;
+        self.leafs.push(transaction);
+        self.merkle_root = Self::create_tree(self.leafs.clone())?.merkle_root;
         Ok(())
     }
 }
