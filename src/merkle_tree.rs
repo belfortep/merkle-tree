@@ -25,7 +25,7 @@ enum MerkleNode {
 }
 pub struct MerkleTree<H: AsRef<[u8]> + Clone> {
     merkle_root: MerkleNode,
-    leafs: Vec<H>,
+    leaves: Vec<H>,
 }
 
 impl MerkleNode {
@@ -105,7 +105,7 @@ impl<H: AsRef<[u8]> + Clone> MerkleTree<H> {
 
         Ok(Self {
             merkle_root: nodes[0].clone(),
-            leafs: transactions,
+            leaves: transactions,
         })
     }
 
@@ -176,8 +176,8 @@ impl<H: AsRef<[u8]> + Clone> MerkleTree<H> {
     }
 
     pub fn add(&mut self, transaction: H) -> Result<(), &'static str> {
-        self.leafs.push(transaction);
-        self.merkle_root = Self::create_tree(self.leafs.clone())?.merkle_root;
+        self.leaves.push(transaction);
+        self.merkle_root = Self::create_tree(self.leaves.clone())?.merkle_root;
         Ok(())
     }
 }
