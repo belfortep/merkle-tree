@@ -92,16 +92,16 @@ impl<H: AsRef<[u8]> + Clone> MerkleTree<H> {
             .collect();
 
         // We loop all the elements and construct the next level of the tree, we stop once there is only one element (the root)
+        let mut parents: Vec<MerkleNode> = Vec::with_capacity(nodes.len());
         while nodes.len() > 1 {
-            let mut parents = Vec::new();
             let mut iter = nodes.into_iter();
 
             while let (Some(left_son), right_son) = (iter.next(), iter.next()) {
                 let parent = Self::create_parent_from_siblings(left_son, right_son);
                 parents.push(parent);
             }
-
-            nodes = parents;
+            nodes = parents[0..parents.len()].to_vec();
+            parents.clear();
         }
 
         Ok(Self {
