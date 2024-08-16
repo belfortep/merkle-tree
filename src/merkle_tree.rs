@@ -157,11 +157,9 @@ impl<H: AsRef<[u8]> + Clone> MerkleTree<H> {
                     return true;
                 }
 
-                return false;
+                false
             }
-            MerkleNode::Leaf(_) => {
-                return false;
-            }
+            MerkleNode::Leaf(_) => false,
         }
     }
 
