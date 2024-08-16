@@ -1,22 +1,21 @@
-use std::{
-    hash::{DefaultHasher, Hash, Hasher},
-    rc::Rc,
-};
+use std::rc::Rc;
+
+use sha3::{Digest, Sha3_256};
 
 pub enum SiblingHash {
-    Left(u64),
-    Right(u64),
+    Left(Vec<u8>),
+    Right(Vec<u8>),
 }
 
 #[derive(Clone)]
 struct InnerNode {
-    hash_value: u64,
+    hash_value: Vec<u8>,
     left_son: Rc<MerkleNode>,
     right_son: Rc<MerkleNode>,
 }
 #[derive(Clone)]
 struct LeafNode {
-    hash_value: u64,
+    hash_value: Vec<u8>,
 }
 
 #[derive(Clone)]
@@ -24,22 +23,22 @@ enum MerkleNode {
     Inner(InnerNode),
     Leaf(LeafNode),
 }
-pub struct MerkleTree<H: Hash + Clone> {
+pub struct MerkleTree<H: AsRef<[u8]> + Clone> {
     merkle_root: MerkleNode,
     leafs: Vec<H>,
 }
 
 impl MerkleNode {
-    pub fn get_hash_value(&self) -> u64 {
+    pub fn get_hash_value(&self) -> Vec<u8> {
         match self {
-            Self::Inner(node) => node.hash_value,
-            Self::Leaf(node) => node.hash_value,
+            Self::Inner(node) => node.hash_value.clone(),
+            Self::Leaf(node) => node.hash_value.clone(),
         }
     }
 }
 
 impl InnerNode {
-    pub fn new(hash_value: u64, left_son: Rc<MerkleNode>, right_son: Rc<MerkleNode>) -> Self {
+    pub fn new(hash_value: Vec<u8>, left_son: Rc<MerkleNode>, right_son: Rc<MerkleNode>) -> Self {
         Self {
             hash_value,
             left_son,
@@ -49,12 +48,12 @@ impl InnerNode {
 }
 
 impl LeafNode {
-    pub fn new(hash_value: u64) -> Self {
+    pub fn new(hash_value: Vec<u8>) -> Self {
         Self { hash_value }
     }
 }
 
-impl<H: Hash + Clone> MerkleTree<H> {
+impl<H: AsRef<[u8]> + Clone> MerkleTree<H> {
     pub fn new(transactions: Vec<H>) -> Result<Self, &'static str> {
         Self::create_tree(transactions)
     }
@@ -64,15 +63,14 @@ impl<H: Hash + Clone> MerkleTree<H> {
         left_son: MerkleNode,
         right_son: Option<MerkleNode>,
     ) -> MerkleNode {
-        let mut hasher = DefaultHasher::new();
-
-        left_son.get_hash_value().hash(&mut hasher);
+        let mut hasher = Sha3_256::new();
+        hasher.update(left_son.get_hash_value());
 
         let right_son = right_son.unwrap_or_else(|| left_son.clone());
-        right_son.get_hash_value().hash(&mut hasher);
+        hasher.update(right_son.get_hash_value());
 
         MerkleNode::Inner(InnerNode::new(
-            hasher.finish(),
+            hasher.finalize().to_ascii_lowercase(),
             Rc::new(left_son),
             Rc::new(right_son),
         ))
@@ -87,14 +85,13 @@ impl<H: Hash + Clone> MerkleTree<H> {
             .clone()
             .into_iter()
             .map(|transaction| {
-                let mut hasher = DefaultHasher::new();
-                transaction.hash(&mut hasher);
-                MerkleNode::Leaf(LeafNode::new(hasher.finish()))
+                let mut hasher = Sha3_256::new();
+                hasher.update(transaction);
+                MerkleNode::Leaf(LeafNode::new(hasher.finalize().to_ascii_lowercase()))
             })
             .collect();
 
         // We loop all the elements and construct the next level of the tree, we stop once there is only one element (the root)
-
         while nodes.len() > 1 {
             let mut parents = Vec::new();
             let mut iter = nodes.into_iter();
@@ -114,23 +111,23 @@ impl<H: Hash + Clone> MerkleTree<H> {
     }
 
     pub fn verify(&mut self, transaction: H, proof: Vec<SiblingHash>) -> bool {
-        let mut hasher = DefaultHasher::new();
-        transaction.hash(&mut hasher);
-        let mut transaction = hasher.finish();
+        let mut hasher = Sha3_256::new();
+        hasher.update(transaction);
+        let mut transaction = hasher.finalize().to_ascii_lowercase();
         for sibling_hash in proof {
-            hasher = DefaultHasher::new();
+            let mut hasher = Sha3_256::new();
             match sibling_hash {
                 SiblingHash::Left(left_hash) => {
-                    left_hash.hash(&mut hasher);
-                    transaction.hash(&mut hasher);
+                    hasher.update(left_hash);
+                    hasher.update(transaction);
                 }
                 SiblingHash::Right(right_hash) => {
-                    transaction.hash(&mut hasher);
-                    right_hash.hash(&mut hasher);
+                    hasher.update(transaction);
+                    hasher.update(right_hash);
                 }
             }
 
-            transaction = hasher.finish();
+            transaction = hasher.finalize().to_ascii_lowercase();
         }
 
         transaction == self.merkle_root.get_hash_value()
@@ -139,7 +136,7 @@ impl<H: Hash + Clone> MerkleTree<H> {
     fn recursive_get_proof(
         current_node: &MerkleNode,
         proof: &mut Vec<SiblingHash>,
-        transaction_hash: u64,
+        transaction_hash: Vec<u8>,
     ) -> bool {
         match current_node {
             MerkleNode::Inner(node) => {
@@ -147,7 +144,7 @@ impl<H: Hash + Clone> MerkleTree<H> {
                     proof.push(SiblingHash::Right(node.right_son.get_hash_value()));
                     return true;
                 }
-                if Self::recursive_get_proof(&node.left_son, proof, transaction_hash) {
+                if Self::recursive_get_proof(&node.left_son, proof, transaction_hash.clone()) {
                     proof.push(SiblingHash::Right(node.right_son.get_hash_value()));
                     return true;
                 }
@@ -171,9 +168,13 @@ impl<H: Hash + Clone> MerkleTree<H> {
 
     pub fn get_proof(&mut self, transaction: H) -> Vec<SiblingHash> {
         let mut proof = Vec::new();
-        let mut hasher = DefaultHasher::new();
-        transaction.hash(&mut hasher);
-        Self::recursive_get_proof(&self.merkle_root, &mut proof, hasher.finish());
+        let mut hasher = Sha3_256::new();
+        hasher.update(transaction);
+        Self::recursive_get_proof(
+            &self.merkle_root,
+            &mut proof,
+            hasher.finalize().to_ascii_lowercase(),
+        );
         proof
     }
 
@@ -186,7 +187,6 @@ impl<H: Hash + Clone> MerkleTree<H> {
 
 #[cfg(test)]
 pub mod test {
-
     use crate::merkle_tree::MerkleTree;
 
     #[test]
@@ -286,7 +286,7 @@ pub mod test {
 
     #[test]
     fn a_merkle_tree_can_have_generic_transactions() {
-        let transactions = vec![1000, 1500, 2000, 3000, 4000, 5500, 7000, 8700];
+        let transactions = vec![vec![10, 20, 30], vec![20, 30, 40], vec![100, 150, 200]];
         let mut merkle_tree = MerkleTree::new(transactions.clone()).unwrap();
         let transaction = transactions[0].clone();
         let proof = merkle_tree.get_proof(transaction.clone());
