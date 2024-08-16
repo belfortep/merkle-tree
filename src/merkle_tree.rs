@@ -3,19 +3,19 @@ use std::rc::Rc;
 use sha3::{Digest, Sha3_256};
 
 pub enum SiblingHash {
-    Left(Vec<u8>),
-    Right(Vec<u8>),
+    Left(String),
+    Right(String),
 }
 
 #[derive(Clone)]
 struct InnerNode {
-    hash_value: Vec<u8>,
+    hash_value: String,
     left_son: Rc<MerkleNode>,
     right_son: Rc<MerkleNode>,
 }
 #[derive(Clone)]
 struct LeafNode {
-    hash_value: Vec<u8>,
+    hash_value: String,
 }
 
 #[derive(Clone)]
@@ -29,7 +29,7 @@ pub struct MerkleTree<H: AsRef<[u8]> + Clone> {
 }
 
 impl MerkleNode {
-    pub fn get_hash_value(&self) -> Vec<u8> {
+    pub fn get_hash_value(&self) -> String {
         match self {
             Self::Inner(node) => node.hash_value.clone(),
             Self::Leaf(node) => node.hash_value.clone(),
@@ -38,7 +38,7 @@ impl MerkleNode {
 }
 
 impl InnerNode {
-    pub fn new(hash_value: Vec<u8>, left_son: Rc<MerkleNode>, right_son: Rc<MerkleNode>) -> Self {
+    pub fn new(hash_value: String, left_son: Rc<MerkleNode>, right_son: Rc<MerkleNode>) -> Self {
         Self {
             hash_value,
             left_son,
@@ -48,7 +48,7 @@ impl InnerNode {
 }
 
 impl LeafNode {
-    pub fn new(hash_value: Vec<u8>) -> Self {
+    pub fn new(hash_value: String) -> Self {
         Self { hash_value }
     }
 }
@@ -70,7 +70,7 @@ impl<H: AsRef<[u8]> + Clone> MerkleTree<H> {
         hasher.update(right_son.get_hash_value());
 
         MerkleNode::Inner(InnerNode::new(
-            hasher.finalize().to_ascii_lowercase(),
+            format!("{:X}", hasher.finalize()),
             Rc::new(left_son),
             Rc::new(right_son),
         ))
@@ -87,7 +87,7 @@ impl<H: AsRef<[u8]> + Clone> MerkleTree<H> {
             .map(|transaction| {
                 let mut hasher = Sha3_256::new();
                 hasher.update(transaction);
-                MerkleNode::Leaf(LeafNode::new(hasher.finalize().to_ascii_lowercase()))
+                MerkleNode::Leaf(LeafNode::new(format!("{:X}", hasher.finalize())))
             })
             .collect();
 
@@ -113,7 +113,7 @@ impl<H: AsRef<[u8]> + Clone> MerkleTree<H> {
     pub fn verify(&mut self, transaction: H, proof: Vec<SiblingHash>) -> bool {
         let mut hasher = Sha3_256::new();
         hasher.update(transaction);
-        let mut transaction = hasher.finalize().to_ascii_lowercase();
+        let mut transaction = format!("{:X}", hasher.finalize());
         for sibling_hash in proof {
             let mut hasher = Sha3_256::new();
             match sibling_hash {
@@ -127,7 +127,7 @@ impl<H: AsRef<[u8]> + Clone> MerkleTree<H> {
                 }
             }
 
-            transaction = hasher.finalize().to_ascii_lowercase();
+            transaction = format!("{:X}", hasher.finalize());
         }
 
         transaction == self.merkle_root.get_hash_value()
@@ -136,7 +136,7 @@ impl<H: AsRef<[u8]> + Clone> MerkleTree<H> {
     fn recursive_get_proof(
         current_node: &MerkleNode,
         proof: &mut Vec<SiblingHash>,
-        transaction_hash: Vec<u8>,
+        transaction_hash: String,
     ) -> bool {
         match current_node {
             MerkleNode::Inner(node) => {
@@ -153,7 +153,7 @@ impl<H: AsRef<[u8]> + Clone> MerkleTree<H> {
                     proof.push(SiblingHash::Left(node.left_son.get_hash_value()));
                     return true;
                 }
-                if Self::recursive_get_proof(&node.left_son, proof, transaction_hash) {
+                if Self::recursive_get_proof(&node.right_son, proof, transaction_hash) {
                     proof.push(SiblingHash::Left(node.left_son.get_hash_value()));
                     return true;
                 }
@@ -173,7 +173,7 @@ impl<H: AsRef<[u8]> + Clone> MerkleTree<H> {
         Self::recursive_get_proof(
             &self.merkle_root,
             &mut proof,
-            hasher.finalize().to_ascii_lowercase(),
+            format!("{:X}", hasher.finalize()),
         );
         proof
     }
