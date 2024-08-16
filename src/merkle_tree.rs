@@ -65,7 +65,6 @@ impl<H: AsRef<[u8]> + Clone> MerkleTree<H> {
     ) -> MerkleNode {
         let mut hasher = Sha3_256::new();
         hasher.update(left_son.get_hash_value());
-
         let right_son = right_son.unwrap_or_else(|| left_son.clone());
         hasher.update(right_son.get_hash_value());
 
