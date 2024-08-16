@@ -62,26 +62,19 @@ impl<H: Hash + Clone> MerkleTree<H> {
     // Fathers must have at least one son, if it does not have one, we clone the left one
     fn create_parent_from_siblings(
         left_son: MerkleNode,
-        mut right_son: Option<MerkleNode>,
+        right_son: Option<MerkleNode>,
     ) -> MerkleNode {
         let mut hasher = DefaultHasher::new();
 
         left_son.get_hash_value().hash(&mut hasher);
 
-        match &right_son {
-            Some(right_sibling) => {
-                right_sibling.get_hash_value().hash(&mut hasher);
-            }
-            None => {
-                right_son = Some(left_son.clone());
-                left_son.get_hash_value().hash(&mut hasher);
-            }
-        }
+        let right_son = right_son.unwrap_or_else(|| left_son.clone());
+        right_son.get_hash_value().hash(&mut hasher);
 
         MerkleNode::Inner(InnerNode::new(
             hasher.finish(),
             Rc::new(left_son),
-            Rc::new(right_son.unwrap()),
+            Rc::new(right_son),
         ))
     }
 
