@@ -1,7 +1,5 @@
 use std::rc::Rc;
 
-use sha3::Digest;
-
 pub enum SiblingHash<'a> {
     Left(&'a [u8]),
     Right(&'a [u8]),
@@ -54,12 +52,12 @@ impl LeafNode {
 }
 
 impl<H: AsRef<[u8]> + Clone> MerkleTree<H> {
-    pub fn new<D: Digest>(transactions: Vec<H>) -> Result<Self, &'static str> {
+    pub fn new<D: digest::Digest>(transactions: Vec<H>) -> Result<Self, &'static str> {
         Self::create_tree::<D>(transactions)
     }
 
     // Fathers must have at least one son, if it does not have one, we clone the left one
-    fn create_parent_from_siblings<D: Digest>(
+    fn create_parent_from_siblings<D: digest::Digest>(
         left_son: MerkleNode,
         right_son: Option<MerkleNode>,
     ) -> MerkleNode {
@@ -75,7 +73,7 @@ impl<H: AsRef<[u8]> + Clone> MerkleTree<H> {
         ))
     }
 
-    fn create_tree<D: Digest>(transactions: Vec<H>) -> Result<MerkleTree<H>, &'static str> {
+    fn create_tree<D: digest::Digest>(transactions: Vec<H>) -> Result<MerkleTree<H>, &'static str> {
         if transactions.is_empty() {
             return Err("Can't create a tree without elements");
         }
@@ -108,7 +106,7 @@ impl<H: AsRef<[u8]> + Clone> MerkleTree<H> {
         })
     }
 
-    pub fn verify<D: Digest>(&self, transaction: H, proof: Vec<SiblingHash>) -> bool {
+    pub fn verify<D: digest::Digest>(&self, transaction: H, proof: Vec<SiblingHash>) -> bool {
         let mut hasher = D::new();
         hasher.update(transaction);
         let mut transaction = hasher.finalize().to_ascii_lowercase();
@@ -162,7 +160,7 @@ impl<H: AsRef<[u8]> + Clone> MerkleTree<H> {
         }
     }
 
-    pub fn get_proof<D: Digest>(&self, transaction: H) -> Vec<SiblingHash> {
+    pub fn get_proof<D: digest::Digest>(&self, transaction: H) -> Vec<SiblingHash> {
         let mut proof = Vec::new();
         let mut hasher = D::new();
         hasher.update(transaction);
@@ -175,7 +173,7 @@ impl<H: AsRef<[u8]> + Clone> MerkleTree<H> {
         proof
     }
 
-    pub fn add<D: Digest>(&mut self, transaction: H) -> Result<(), &'static str> {
+    pub fn add<D: digest::Digest>(&mut self, transaction: H) -> Result<(), &'static str> {
         self.leaves.push(transaction);
         let leaves = std::mem::take(&mut self.leaves);
         *self = Self::create_tree::<D>(leaves)?;
