@@ -2,9 +2,9 @@ use std::rc::Rc;
 
 use sha3::Digest;
 
-pub enum SiblingHash {
-    Left(Vec<u8>),
-    Right(Vec<u8>),
+pub enum SiblingHash<'a> {
+    Left(&'a [u8]),
+    Right(&'a [u8]),
 }
 
 #[derive(Clone)]
@@ -29,10 +29,10 @@ pub struct MerkleTree<H: AsRef<[u8]> + Clone> {
 }
 
 impl MerkleNode {
-    pub fn get_hash_value(&self) -> Vec<u8> {
+    pub fn get_hash_value(&self) -> &[u8] {
         match self {
-            Self::Inner(node) => node.hash_value.clone(),
-            Self::Leaf(node) => node.hash_value.clone(),
+            Self::Inner(node) => &node.hash_value,
+            Self::Leaf(node) => &node.hash_value,
         }
     }
 }
@@ -108,7 +108,7 @@ impl<H: AsRef<[u8]> + Clone> MerkleTree<H> {
         })
     }
 
-    pub fn verify<D: Digest>(&mut self, transaction: H, proof: Vec<SiblingHash>) -> bool {
+    pub fn verify<D: Digest>(&self, transaction: H, proof: Vec<SiblingHash>) -> bool {
         let mut hasher = D::new();
         hasher.update(transaction);
         let mut transaction = hasher.finalize().to_ascii_lowercase();
@@ -131,9 +131,9 @@ impl<H: AsRef<[u8]> + Clone> MerkleTree<H> {
         transaction == self.merkle_root.get_hash_value()
     }
 
-    fn recursive_get_proof(
-        current_node: &MerkleNode,
-        proof: &mut Vec<SiblingHash>,
+    fn recursive_get_proof<'a>(
+        current_node: &'a MerkleNode,
+        proof: &mut Vec<SiblingHash<'a>>,
         transaction_hash: Vec<u8>,
     ) -> bool {
         match current_node {
@@ -162,7 +162,7 @@ impl<H: AsRef<[u8]> + Clone> MerkleTree<H> {
         }
     }
 
-    pub fn get_proof<D: Digest>(&mut self, transaction: H) -> Vec<SiblingHash> {
+    pub fn get_proof<D: Digest>(&self, transaction: H) -> Vec<SiblingHash> {
         let mut proof = Vec::new();
         let mut hasher = D::new();
         hasher.update(transaction);
@@ -200,7 +200,7 @@ pub mod test {
     #[test]
     fn a_merkle_tree_can_contain_one_transaction() {
         let transactions = vec![String::from("A")];
-        let mut merkle_tree = MerkleTree::new::<Sha3_256>(transactions.clone()).unwrap();
+        let merkle_tree = MerkleTree::new::<Sha3_256>(transactions.clone()).unwrap();
         let transaction = transactions[0].clone();
         let proof = merkle_tree.get_proof::<Sha3_256>(transaction.clone());
 
@@ -210,7 +210,7 @@ pub mod test {
     #[test]
     fn a_merkle_tree_can_contain_one_level_of_transactions() {
         let transactions = vec![String::from("A"), String::from("B")];
-        let mut merkle_tree = MerkleTree::new::<Sha3_256>(transactions.clone()).unwrap();
+        let merkle_tree = MerkleTree::new::<Sha3_256>(transactions.clone()).unwrap();
         let transaction = transactions[0].clone();
         let proof = merkle_tree.get_proof::<Sha3_256>(transaction.clone());
 
@@ -224,7 +224,7 @@ pub mod test {
             String::from("C"),
             String::from("D"),
         ];
-        let mut merkle_tree = MerkleTree::new::<Sha3_256>(transactions.clone()).unwrap();
+        let merkle_tree = MerkleTree::new::<Sha3_256>(transactions.clone()).unwrap();
         let transaction = transactions[0].clone();
         let proof = merkle_tree.get_proof::<Sha3_256>(transaction.clone());
 
@@ -234,7 +234,7 @@ pub mod test {
     #[test]
     fn a_merkle_tree_can_contain_an_odd_number_of_transactions() {
         let transactions = vec![String::from("A"), String::from("B"), String::from("C")];
-        let mut merkle_tree = MerkleTree::new::<Sha3_256>(transactions.clone()).unwrap();
+        let merkle_tree = MerkleTree::new::<Sha3_256>(transactions.clone()).unwrap();
         let transaction = transactions[0].clone();
         let proof = merkle_tree.get_proof::<Sha3_256>(transaction.clone());
 
@@ -250,11 +250,11 @@ pub mod test {
             String::from("E"),
             String::from("F"),
         ];
-        let mut merkle_tree = MerkleTree::new::<Sha3_256>(transactions.clone()).unwrap();
+        let merkle_tree = MerkleTree::new::<Sha3_256>(transactions.clone()).unwrap();
         let transaction = transactions[0].clone();
         let proof = merkle_tree.get_proof::<Sha3_256>(transaction.clone());
-
-        assert!(merkle_tree.verify::<Sha3_256>(transaction, proof));
+        let hola = merkle_tree.verify::<Sha3_256>(transaction, proof);
+        assert!(hola);
     }
 
     #[test]
@@ -277,7 +277,7 @@ pub mod test {
     #[test]
     fn a_merkle_tree_cant_verify_a_transaction_if_not_present() {
         let transactions = vec![String::from("A"), String::from("B")];
-        let mut merkle_tree = MerkleTree::new::<Sha3_256>(transactions.clone()).unwrap();
+        let merkle_tree = MerkleTree::new::<Sha3_256>(transactions.clone()).unwrap();
         let transaction = String::from("C");
         let proof = merkle_tree.get_proof::<Sha3_256>(transaction.clone());
 
@@ -287,7 +287,7 @@ pub mod test {
     #[test]
     fn a_merkle_tree_cant_verify_a_transaction_with_different_hasher() {
         let transactions = vec![String::from("A"), String::from("B")];
-        let mut merkle_tree = MerkleTree::new::<Sha3_256>(transactions.clone()).unwrap();
+        let merkle_tree = MerkleTree::new::<Sha3_256>(transactions.clone()).unwrap();
         let transaction = transactions[0].clone();
         let proof = merkle_tree.get_proof::<Sha3_256>(transaction.clone());
 
@@ -297,7 +297,7 @@ pub mod test {
     #[test]
     fn a_merkle_tree_can_have_generic_transactions() {
         let transactions = vec![vec![10, 20, 30], vec![20, 30, 40], vec![100, 150, 200]];
-        let mut merkle_tree = MerkleTree::new::<Sha3_256>(transactions.clone()).unwrap();
+        let merkle_tree = MerkleTree::new::<Sha3_256>(transactions.clone()).unwrap();
         let transaction = transactions[0].clone();
         let proof = merkle_tree.get_proof::<Sha3_256>(transaction.clone());
 
@@ -309,7 +309,7 @@ pub mod test {
             "Nada nos libra,",
             "Nada mas queda",
         ];
-        let mut merkle_tree = MerkleTree::new::<Sha3_256>(transactions.clone()).unwrap();
+        let merkle_tree = MerkleTree::new::<Sha3_256>(transactions.clone()).unwrap();
         let transaction = transactions[0];
         let proof = merkle_tree.get_proof::<Sha3_256>(transaction);
 
