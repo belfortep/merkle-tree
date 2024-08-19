@@ -103,7 +103,7 @@ impl<H: AsRef<[u8]> + Clone> MerkleTree<H> {
         }
 
         Ok(Self {
-            merkle_root: nodes.pop().unwrap(), // never panics!
+            merkle_root: nodes.pop().unwrap(), // never panics, as 'nodes' have exactly one element at this point!
             leaves: transactions,
         })
     }
