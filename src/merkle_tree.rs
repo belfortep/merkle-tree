@@ -177,7 +177,8 @@ impl<H: AsRef<[u8]> + Clone> MerkleTree<H> {
 
     pub fn add<D: Digest>(&mut self, transaction: H) -> Result<(), &'static str> {
         self.leaves.push(transaction);
-        self.merkle_root = Self::create_tree::<D>(self.leaves.clone())?.merkle_root;
+        let leaves = std::mem::take(&mut self.leaves);
+        *self = Self::create_tree::<D>(leaves)?;
         Ok(())
     }
 }
