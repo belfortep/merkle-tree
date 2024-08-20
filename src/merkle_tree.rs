@@ -14,6 +14,7 @@ struct InnerNode {
 #[derive(Clone)]
 struct LeafNode {
     hash_value: Vec<u8>,
+    data: Vec<u8>,
 }
 
 #[derive(Clone)]
@@ -46,8 +47,8 @@ impl InnerNode {
 }
 
 impl LeafNode {
-    pub fn new(hash_value: Vec<u8>) -> Self {
-        Self { hash_value }
+    pub fn new(hash_value: Vec<u8>, data: Vec<u8>) -> Self {
+        Self { hash_value, data }
     }
 }
 
@@ -85,6 +86,7 @@ impl<H: AsRef<[u8]> + Clone> MerkleTree<H> {
                 hasher.update(transaction);
                 Rc::new(MerkleNode::Leaf(LeafNode::new(
                     hasher.finalize().to_ascii_lowercase(),
+                    transaction.as_ref().to_vec(),
                 )))
             })
             .collect();
