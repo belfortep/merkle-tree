@@ -6,28 +6,27 @@ pub enum SiblingHash<'a> {
 }
 
 #[derive(Clone)]
-struct InnerNode {
+struct InnerNode<H: AsRef<[u8]> + Clone> {
     hash_value: Vec<u8>,
-    left_son: Rc<MerkleNode>,
-    right_son: Rc<MerkleNode>,
+    left_son: Rc<MerkleNode<H>>,
+    right_son: Rc<MerkleNode<H>>,
 }
 #[derive(Clone)]
-struct LeafNode {
+struct LeafNode<H: AsRef<[u8]> + Clone> {
     hash_value: Vec<u8>,
-    data: Vec<u8>,
+    data: H,
 }
 
 #[derive(Clone)]
-enum MerkleNode {
-    Inner(InnerNode),
-    Leaf(LeafNode),
+enum MerkleNode<H: AsRef<[u8]> + Clone> {
+    Inner(InnerNode<H>),
+    Leaf(LeafNode<H>),
 }
 pub struct MerkleTree<H: AsRef<[u8]> + Clone> {
-    merkle_root: Rc<MerkleNode>,
-    leaves: Vec<H>,
+    merkle_root: Rc<MerkleNode<H>>,
 }
 
-impl MerkleNode {
+impl<H: AsRef<[u8]> + Clone> MerkleNode<H> {
     pub fn get_hash_value(&self) -> &[u8] {
         match self {
             Self::Inner(node) => &node.hash_value,
@@ -36,8 +35,12 @@ impl MerkleNode {
     }
 }
 
-impl InnerNode {
-    pub fn new(hash_value: Vec<u8>, left_son: Rc<MerkleNode>, right_son: Rc<MerkleNode>) -> Self {
+impl<H: AsRef<[u8]> + Clone> InnerNode<H> {
+    pub fn new(
+        hash_value: Vec<u8>,
+        left_son: Rc<MerkleNode<H>>,
+        right_son: Rc<MerkleNode<H>>,
+    ) -> Self {
         Self {
             hash_value,
             left_son,
@@ -46,8 +49,8 @@ impl InnerNode {
     }
 }
 
-impl LeafNode {
-    pub fn new(hash_value: Vec<u8>, data: Vec<u8>) -> Self {
+impl<H: AsRef<[u8]> + Clone> LeafNode<H> {
+    pub fn new(hash_value: Vec<u8>, data: H) -> Self {
         Self { hash_value, data }
     }
 }
@@ -59,9 +62,9 @@ impl<H: AsRef<[u8]> + Clone> MerkleTree<H> {
 
     // Fathers must have at least one son, if it does not have one, we clone the left one
     fn create_parent_from_siblings<D: digest::Digest>(
-        left_son: Rc<MerkleNode>,
-        right_son: Option<Rc<MerkleNode>>,
-    ) -> Rc<MerkleNode> {
+        left_son: Rc<MerkleNode<H>>,
+        right_son: Option<Rc<MerkleNode<H>>>,
+    ) -> Rc<MerkleNode<H>> {
         let mut hasher = D::new();
         hasher.update(left_son.get_hash_value());
         let right_son = right_son.unwrap_or_else(|| left_son.clone());
@@ -79,20 +82,20 @@ impl<H: AsRef<[u8]> + Clone> MerkleTree<H> {
             return Err("Can't create a tree without elements");
         }
 
-        let mut nodes: Vec<Rc<MerkleNode>> = transactions
+        let mut nodes: Vec<Rc<MerkleNode<H>>> = transactions
             .iter()
             .map(|transaction| {
                 let mut hasher = D::new();
                 hasher.update(transaction);
                 Rc::new(MerkleNode::Leaf(LeafNode::new(
                     hasher.finalize().to_ascii_lowercase(),
-                    transaction.as_ref().to_vec(),
+                    transaction.clone(),
                 )))
             })
             .collect();
 
         // We loop all the elements and construct the next level of the tree, we stop once there is only one element (the root)
-        let mut parents: Vec<Rc<MerkleNode>> = Vec::with_capacity(nodes.len());
+        let mut parents: Vec<Rc<MerkleNode<H>>> = Vec::with_capacity(nodes.len());
         while nodes.len() > 1 {
             let mut iter = nodes.into_iter();
 
@@ -106,7 +109,6 @@ impl<H: AsRef<[u8]> + Clone> MerkleTree<H> {
 
         Ok(Self {
             merkle_root: nodes.pop().unwrap(), // never panics, as 'nodes' have exactly one element at this point!
-            leaves: transactions,
         })
     }
 
@@ -134,7 +136,7 @@ impl<H: AsRef<[u8]> + Clone> MerkleTree<H> {
     }
 
     fn recursive_get_proof<'a>(
-        current_node: &'a MerkleNode,
+        current_node: &'a MerkleNode<H>,
         proof: &mut Vec<SiblingHash<'a>>,
         transaction_hash: Vec<u8>,
     ) -> bool {
@@ -177,9 +179,28 @@ impl<H: AsRef<[u8]> + Clone> MerkleTree<H> {
         proof
     }
 
+    fn recursive_get_leaves(current_node: &MerkleNode<H>, leaves_data: &mut Vec<H>) {
+        match current_node {
+            MerkleNode::Inner(inner) => {
+                Self::recursive_get_leaves(&inner.right_son, leaves_data);
+                Self::recursive_get_leaves(&inner.left_son, leaves_data);
+            }
+            MerkleNode::Leaf(leaf) => {
+                leaves_data.push(leaf.data.clone());
+            }
+        }
+    }
+
+    fn get_leaves(&self) -> Vec<H> {
+        let mut leaves_data = Vec::new();
+        Self::recursive_get_leaves(&self.merkle_root, &mut leaves_data);
+
+        leaves_data
+    }
+
     pub fn add<D: digest::Digest>(&mut self, transaction: H) -> Result<(), &'static str> {
-        self.leaves.push(transaction);
-        let leaves = std::mem::take(&mut self.leaves);
+        let mut leaves = self.get_leaves();
+        leaves.push(transaction);
         *self = Self::create_tree::<D>(leaves)?;
         Ok(())
     }
