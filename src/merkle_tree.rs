@@ -22,7 +22,7 @@ enum MerkleNode {
     Leaf(LeafNode),
 }
 pub struct MerkleTree<H: AsRef<[u8]> + Clone> {
-    merkle_root: MerkleNode,
+    merkle_root: Rc<MerkleNode>,
     leaves: Vec<H>,
 }
 
@@ -58,19 +58,19 @@ impl<H: AsRef<[u8]> + Clone> MerkleTree<H> {
 
     // Fathers must have at least one son, if it does not have one, we clone the left one
     fn create_parent_from_siblings<D: digest::Digest>(
-        left_son: MerkleNode,
-        right_son: Option<MerkleNode>,
-    ) -> MerkleNode {
+        left_son: Rc<MerkleNode>,
+        right_son: Option<Rc<MerkleNode>>,
+    ) -> Rc<MerkleNode> {
         let mut hasher = D::new();
         hasher.update(left_son.get_hash_value());
         let right_son = right_son.unwrap_or_else(|| left_son.clone());
         hasher.update(right_son.get_hash_value());
 
-        MerkleNode::Inner(InnerNode::new(
+        Rc::new(MerkleNode::Inner(InnerNode::new(
             hasher.finalize().to_ascii_lowercase(),
-            Rc::new(left_son),
-            Rc::new(right_son),
-        ))
+            left_son,
+            right_son,
+        )))
     }
 
     fn create_tree<D: digest::Digest>(transactions: Vec<H>) -> Result<MerkleTree<H>, &'static str> {
@@ -78,17 +78,19 @@ impl<H: AsRef<[u8]> + Clone> MerkleTree<H> {
             return Err("Can't create a tree without elements");
         }
 
-        let mut nodes: Vec<MerkleNode> = transactions
+        let mut nodes: Vec<Rc<MerkleNode>> = transactions
             .iter()
             .map(|transaction| {
                 let mut hasher = D::new();
                 hasher.update(transaction);
-                MerkleNode::Leaf(LeafNode::new(hasher.finalize().to_ascii_lowercase()))
+                Rc::new(MerkleNode::Leaf(LeafNode::new(
+                    hasher.finalize().to_ascii_lowercase(),
+                )))
             })
             .collect();
 
         // We loop all the elements and construct the next level of the tree, we stop once there is only one element (the root)
-        let mut parents: Vec<MerkleNode> = Vec::with_capacity(nodes.len());
+        let mut parents: Vec<Rc<MerkleNode>> = Vec::with_capacity(nodes.len());
         while nodes.len() > 1 {
             let mut iter = nodes.into_iter();
 
