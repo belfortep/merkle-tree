@@ -71,7 +71,7 @@ impl<H: AsRef<[u8]> + Clone> MerkleTree<H> {
         hasher.update(right_son.get_hash_value());
 
         Rc::new(MerkleNode::Inner(InnerNode::new(
-            hasher.finalize().to_ascii_lowercase(),
+            hasher.finalize().to_vec(),
             left_son,
             right_son,
         )))
@@ -88,7 +88,7 @@ impl<H: AsRef<[u8]> + Clone> MerkleTree<H> {
                 let mut hasher = D::new();
                 hasher.update(transaction);
                 Rc::new(MerkleNode::Leaf(LeafNode::new(
-                    hasher.finalize().to_ascii_lowercase(),
+                    hasher.finalize().to_vec(),
                     transaction.clone(),
                 )))
             })
@@ -115,7 +115,7 @@ impl<H: AsRef<[u8]> + Clone> MerkleTree<H> {
     pub fn verify<D: digest::Digest>(&self, transaction: H, proof: Vec<SiblingHash>) -> bool {
         let mut hasher = D::new();
         hasher.update(transaction);
-        let mut transaction = hasher.finalize().to_ascii_lowercase();
+        let mut transaction = hasher.finalize().to_vec();
         for sibling_hash in proof {
             let mut hasher = D::new();
             match sibling_hash {
@@ -129,7 +129,7 @@ impl<H: AsRef<[u8]> + Clone> MerkleTree<H> {
                 }
             }
 
-            transaction = hasher.finalize().to_ascii_lowercase();
+            transaction = hasher.finalize().to_vec();
         }
 
         transaction == self.merkle_root.get_hash_value()
@@ -171,11 +171,7 @@ impl<H: AsRef<[u8]> + Clone> MerkleTree<H> {
         let mut hasher = D::new();
         hasher.update(transaction);
 
-        Self::recursive_get_proof(
-            &self.merkle_root,
-            &mut proof,
-            hasher.finalize().to_ascii_lowercase(),
-        );
+        Self::recursive_get_proof(&self.merkle_root, &mut proof, hasher.finalize().to_vec());
         proof
     }
 
